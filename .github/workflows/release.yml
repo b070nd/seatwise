@@ -55,7 +55,7 @@ jobs:
           name="seatwise-${GITHUB_REF_NAME}-${{ matrix.target }}"
           mkdir -p "dist/$name"
           bin=seat; case "${{ matrix.target }}" in *windows*) bin=seat.exe;; esac
-          cp "target/${{ matrix.target }}/release/$bin" LICENSE-MIT LICENSE-APACHE README.md CHANGELOG.md config.example.toml "dist/$name/"
+          cp "target/${{ matrix.target }}/release/$bin" LICENSE README.md CHANGELOG.md config.example.toml "dist/$name/"
           cd dist
           case "${{ matrix.target }}" in
             *windows*) 7z a -tzip "$name.zip" "$name" > /dev/null ;;

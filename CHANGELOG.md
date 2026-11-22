@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Changed
+- seatwise is licensed under MIT only (it was MIT OR Apache-2.0), copyright b070nd. Releases up to 0.1.0 stay
+  available under both licenses.
 - The README covers every way to install: from crates.io (`cargo install seatwise`), from GitHub, or a prebuilt
   release binary.
 

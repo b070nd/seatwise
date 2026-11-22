@@ -4,7 +4,7 @@
 
 [![ci](https://github.com/b070nd/seatwise/actions/workflows/ci.yml/badge.svg)](https://github.com/b070nd/seatwise/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/seatwise.svg)](https://crates.io/crates/seatwise)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 If you have a company seat and a personal plan (or two clients' seats), seatwise gives each one its own config folder,
 login and organization, ties your project folders to the seat they belong to, and can stop a session on one seat from
@@ -273,7 +273,4 @@ Org UUIDs, org names, emails, account ids and login tokens are read only from yo
 
 ## License
 
-Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT), at your option.
-
-Unless you explicitly state otherwise, any contribution you submit for inclusion in this project, as defined in the
-Apache-2.0 license, is dual licensed as above, without any additional terms or conditions.
+[MIT](LICENSE)
