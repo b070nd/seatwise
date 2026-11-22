@@ -60,6 +60,7 @@ impl Plan {
             Plan::TeamStandard => "Team standard".into(),
             Plan::TeamPremium => "Team premium".into(),
             Plan::Enterprise => "Enterprise".into(),
+            Plan::Other(s) if s == crate::claude::API_KEY => "API key (pay per use)".into(),
             Plan::Other(s) => match s.strip_prefix("chatgpt_") {
                 // Codex seats: the ChatGPT plan, e.g. `chatgpt_plus` → "ChatGPT Plus".
                 Some(p) => {

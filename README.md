@@ -40,7 +40,7 @@ seatwise handles these. If you only need to switch accounts, a plain alias
   desktop app can do it for you when you ask for "a terminal for this project".
 - **A home repo per seat** ([the home-repo pattern](https://www.aihero.dev/the-home-repo-pattern)): one repo with the
   seat's skills, `AGENTS.md` and docs, where sessions start, and a generated list of pointers to that seat's repos only.
-- **Codex (ChatGPT) seats:** `agent = "codex"` gives a seat its own `CODEX_HOME`, with the same folders, hooks and links.
+- **Codex seats (ChatGPT or API key):** `agent = "codex"` gives a seat its own `CODEX_HOME`, with the same folders, hooks and links.
 - **Use-case presets for folder groups:** `explore`, `build`, `review`, `quick` or your own, given to folders the
   way seats are (longest path wins), applied per session or written into the project. Same folder, same settings,
   every time; `seat explain` shows every layer and what it set.
@@ -187,8 +187,10 @@ the file is yours. Skills in `skills/` are copied into the seat on every start, 
 A seat with `agent = "codex"` runs the Codex CLI with its own `CODEX_HOME` (its `auth.json` and `config.toml`).
 Folders, enforcement and link handling work the same; hooks go to `hooks.json`, and Codex asks you to approve them once
 in `/hooks`. The tool hook scans every path in Codex's tool input, including `apply_patch` file headers. `seat list`
-shows the ChatGPT plan. Usage profiles and `seat usage` are Claude Code only. Not yet checked against a real Codex
-install: the layout of `auth.json` and the exact hook input, so treat Codex isolation as best effort for now.
+shows the ChatGPT plan, or "API key" for a seat signed in with an OpenAI API key (seatwise only checks that a key is
+there; it never reads or keeps it). An API-key login has no account to pin, so the org and email checks don't apply to
+it. Usage profiles and `seat usage` are Claude Code only. The exact Codex hook input is not yet checked against a real
+Codex install, so treat Codex isolation as best effort for now.
 
 ## Privacy: identifiers stay on this computer
 
@@ -230,4 +232,7 @@ Org UUIDs, org names, emails, account ids and login tokens are read only from yo
 
 ## License
 
-MIT OR Apache-2.0
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT), at your option.
+
+Unless you explicitly state otherwise, any contribution you submit for inclusion in this project, as defined in the
+Apache-2.0 license, is dual licensed as above, without any additional terms or conditions.

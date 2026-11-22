@@ -56,6 +56,11 @@ impl<'a> SeatStatus<'a> {
     pub fn account_label(&self) -> String {
         match &self.account {
             None => "signed out".into(),
+            Some(a)
+                if a.email.is_none() && a.org_type.as_deref() == Some(crate::claude::API_KEY) =>
+            {
+                "API key".into()
+            }
             Some(a) => {
                 let who = a.email.as_deref().unwrap_or("?");
                 match a.org_name.as_deref() {

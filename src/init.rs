@@ -199,7 +199,7 @@ pub fn session_folders(dir: &Path) -> Vec<PathBuf> {
             .max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok());
         if let Some(cwd) = newest.and_then(|e| first_cwd(&e.path())) {
             let p = normalize(Path::new(&cwd), &home);
-            if p != home && p.is_dir() && !p.starts_with(dir) {
+            if p != home && p.is_dir() && !p.starts_with(dir) && !transient(&p, &home) {
                 found.push(p);
             }
         }
@@ -213,6 +213,33 @@ pub fn session_folders(dir: &Path) -> Vec<PathBuf> {
         .cloned()
         .collect();
     keep
+}
+
+/// Folders an app makes for itself rather than projects: temp folders, per-session scratch folders (the desktop
+/// app's `scratch-workspaces`, say) and app data (`~/Library`, `~/.cache`, `~/.local/share`, `AppData`). Sessions
+/// there say nothing about which seat owns which project.
+fn transient(p: &Path, home: &Path) -> bool {
+    let temp = [
+        std::env::temp_dir(),
+        PathBuf::from("/tmp"),
+        PathBuf::from("/private/tmp"),
+        PathBuf::from("/private/var/folders"),
+        PathBuf::from("/var/folders"),
+    ];
+    let app_data = [
+        "Library",
+        ".cache",
+        ".local/share",
+        ".local/state",
+        "AppData",
+    ];
+    // Temp folders count only outside home (a home inside temp, as in tests, keeps its projects).
+    (!p.starts_with(home) && temp.iter().any(|t| p.starts_with(t)))
+        || app_data.iter().any(|d| p.starts_with(home.join(d)))
+        || p.components().any(|c| {
+            let c = c.as_os_str().to_string_lossy().to_ascii_lowercase();
+            c.starts_with("scratch-workspace") || c == "scratchpad"
+        })
 }
 
 fn first_cwd(log: &Path) -> Option<String> {
@@ -253,6 +280,9 @@ pub fn propose(found: &[Found]) -> String {
             out += "agent = \"codex\"\n";
         }
         match &f.account {
+            Some(a) if a.org_type.as_deref() == Some(claude::API_KEY) && a.email.is_none() => {
+                out += "# signed in with an API key: no account to pin\n";
+            }
             Some(a) => {
                 if let Some(o) = &a.org_uuid {
                     out += &format!("org_uuid = {}\n", quote(o));
@@ -304,6 +334,23 @@ pub fn propose(found: &[Found]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scratch_and_app_folders_are_not_projects() {
+        let home = Path::new("/h");
+        for p in [
+            "/h/Library/Application Support/App/scratch-workspaces/s1",
+            "/h/.cache/x",
+            "/h/AppData/Roaming/x",
+            "/tmp/x",
+            "/h/work/scratch-workspaces/a",
+        ] {
+            assert!(transient(Path::new(p), home), "{p}");
+        }
+        for p in ["/h/code/app", "/h/Libraryish/app", "/h/scratch/app"] {
+            assert!(!transient(Path::new(p), home), "{p}");
+        }
+    }
 
     #[test]
     fn names_from_folders() {

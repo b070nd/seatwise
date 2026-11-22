@@ -23,6 +23,9 @@ pub struct Account {
     pub trial_ends: Option<String>,
 }
 
+/// `org_type` of a login by API key (billed per use, no plan).
+pub const API_KEY: &str = "api_key";
+
 /// The account a seat is signed into, from Claude Code's state file. `None` if signed out.
 pub fn read_account(seat: &Seat) -> Option<Account> {
     match seat.agent {
@@ -32,10 +35,25 @@ pub fn read_account(seat: &Seat) -> Option<Account> {
 }
 
 /// A Codex login (`$CODEX_HOME/auth.json`): the ChatGPT account from the `id_token`'s claims. The file's layout is
-/// not documented, so anything unexpected reads as "no account". An API-key login has no account.
+/// not documented, so anything unexpected reads as "no account". An API-key login (`OPENAI_API_KEY` set, or
+/// `auth_mode` naming an API key) is an account without an email or org, with the plan [`API_KEY`]. The key itself
+/// is only checked for being there, never kept.
 pub fn read_codex_account(auth_file: &Path) -> Option<Account> {
     let auth: Value = serde_json::from_str(&std::fs::read_to_string(auth_file).ok()?).ok()?;
-    let token = auth["tokens"]["id_token"].as_str()?;
+    let Some(token) = auth["tokens"]["id_token"].as_str() else {
+        let has_key = auth["OPENAI_API_KEY"]
+            .as_str()
+            .is_some_and(|k| !k.trim().is_empty());
+        let mode = auth["auth_mode"]
+            .as_str()
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let key_mode = mode.replace(['_', '-'], "") == "apikey";
+        return (has_key || key_mode).then(|| Account {
+            org_type: Some(API_KEY.into()),
+            ..Account::default()
+        });
+    };
     let payload = token.split('.').nth(1)?;
     let claims: Value = serde_json::from_slice(&base64url(payload)?).ok()?;
     let openai = &claims["https://api.openai.com/auth"];
@@ -255,8 +273,16 @@ mod tests {
         assert_eq!(a.email.as_deref(), Some("me@example.org"));
         assert_eq!(a.org_uuid.as_deref(), Some("acc-1"));
         assert_eq!(a.org_type.as_deref(), Some("chatgpt_plus"));
-        std::fs::write(&file, r#"{"OPENAI_API_KEY":"sk-x"}"#).unwrap();
-        assert_eq!(read_codex_account(&file), None, "API-key login: no account");
+        std::fs::write(&file, r#"{"auth_mode":"apikey","OPENAI_API_KEY":"sk-x"}"#).unwrap();
+        let a = read_codex_account(&file).unwrap();
+        assert_eq!(a.org_type.as_deref(), Some(API_KEY), "API-key login");
+        assert_eq!((a.email, a.org_uuid), (None, None));
+        std::fs::write(&file, r#"{"OPENAI_API_KEY":null}"#).unwrap();
+        assert_eq!(
+            read_codex_account(&file),
+            None,
+            "no key, no tokens: signed out"
+        );
     }
 
     #[test]
