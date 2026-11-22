@@ -48,6 +48,19 @@ run the `seat` binary against temporary folders with fake `claude` and `codex` b
   `~/code/app` in fixtures and examples.
 - Add a line under `## [Unreleased]` in CHANGELOG.md for anything a user would notice.
 
+## Merging (maintainers)
+
+`main` only moves forward: nobody can force-push to it or delete it. Changes arrive through pull requests that pass
+`test`, `audit` and `package`. A maintainer merges a green pull request with
+
+```sh
+scripts/merge-pr.sh <number>
+```
+
+which fast-forwards `main` to the pull request's head commit, so the commits keep the author and committer they were
+tested with. The merge button would add the maintainer's own identity to every merged commit, so don't use it. If
+`main` moved on in the meantime, rebase the branch onto it and wait for the checks again.
+
 ## Releasing
 
 1. Move the Unreleased entries in CHANGELOG.md under a new `## [x.y.z] - YYYY-MM-DD` heading and set `version` in

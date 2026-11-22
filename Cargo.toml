@@ -10,7 +10,7 @@ readme = "README.md"
 keywords = ["claude-code", "codex", "multi-account", "isolation", "cli"]
 categories = ["command-line-utilities", "development-tools"]
 
-exclude = ["/.github", "/build.sh", "/.gitattributes"]
+exclude = ["/.github", "/build.sh", "/scripts", "/.gitattributes"]
 
 [[bin]]
 name = "seat"
