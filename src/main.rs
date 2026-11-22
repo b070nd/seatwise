@@ -84,6 +84,12 @@ enum Cmd {
         #[arg(last = true)]
         args: Vec<String>,
     },
+    /// Start the Claude desktop app on a seat (macOS): its own data folder and the seat's environment. Without a
+    /// seat, list the running desktop instances
+    Desktop {
+        /// The seat (or one of its aliases)
+        seat: Option<String>,
+    },
     /// Set up the command line for this project next to the desktop app (seat, folder, skills, preset), then
     /// open a terminal on the same seat and project
     Hybrid {
@@ -613,6 +619,22 @@ fn run(cmd: Cmd) -> Result<i32> {
             &launch::RunOptions { with, home },
             &args,
         ),
+        Cmd::Desktop { seat } => {
+            let cfg = Config::load()?;
+            let lines = match seat {
+                None => seatwise::desktop::status(&cfg, &exe),
+                Some(s) => {
+                    let seat = cfg
+                        .seat(&s)
+                        .with_context(|| format!("unknown seat '{s}' ({})", cfg.seat_names()))?;
+                    seatwise::desktop::open(&cfg, seat, &exe)?
+                }
+            };
+            for l in lines {
+                println!("{l}");
+            }
+            Ok(0)
+        }
         Cmd::Term {
             seat,
             with,

@@ -16,6 +16,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `function NAME { ... }`.
 
 ### Added
+- `seat desktop <seat>` (macOS) starts the installed Claude desktop app on a seat: its own data folder
+  (`--user-data-dir`, default `~/Library/Application Support/Claude-<seat>`, or `user_data_dir = "default"`) and the
+  seat's `CLAUDE_CONFIG_DIR`, `SEATWISE_SEAT` and `BROWSER`. It never starts a second instance on the same data
+  folder, and warns before a first sign-in while other instances run (macOS hands the Google sign-in answer to the
+  oldest instance). `seat desktop` alone lists the running instances. Optional `[seat.desktop]` sets `app` and
+  `user_data_dir`; `seat shell-init` defines `claude-desktop-<seat>` (`shell.desktop_prefix`).
+- `seat doctor` reports desktop instances started without a seat (Dock or Finder), running with an outdated
+  setup (restart them), or sharing a data folder.
 - `seat doctor` warns when Claude Code's default `~/.claude` exists but no seat uses it (something started Claude
   Code without a seat), and when the keychain still holds a login for a config folder no seat uses, with the command
   that removes it.

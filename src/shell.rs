@@ -28,25 +28,45 @@ pub fn init(shell: Shell, cfg: &Config, exe: &Path) -> String {
             names.push((format!("{prefix}{name}"), seat.name.clone()));
         }
     }
+    // The desktop app on a seat (macOS only).
+    if cfg!(target_os = "macos") || std::env::var_os("SEATWISE_DESKTOP_SHELL").is_some() {
+        for seat in cfg
+            .seats
+            .iter()
+            .filter(|s| cfg.is_enabled(s) && s.agent == crate::config::Agent::Claude)
+        {
+            for name in std::iter::once(&seat.name).chain(&seat.aliases) {
+                names.push((
+                    format!("{}{name}", cfg.shell.desktop_prefix),
+                    format!("desktop:{}", seat.name),
+                ));
+            }
+        }
+    }
     let mut out = String::from("# seatwise: Claude Code seats\n");
-    for (func, seat) in names {
+    for (func, target) in names {
+        // `desktop:<seat>` runs `seat desktop <seat>`, anything else `seat run <seat>` with the arguments.
+        let (verb, seat, rest_sh, rest_fish, rest_ps) = match target.strip_prefix("desktop:") {
+            Some(s) => ("desktop", s.to_string(), "", "", ""),
+            None => ("run", target.clone(), " \"$@\"", " $argv", " @args"),
+        };
         out += &match shell {
             // `function NAME` rather than `NAME()`: the shell would expand NAME as an alias while parsing
             // `NAME()` (zsh: "defining function based on alias", then a parse error that aborts the whole eval),
             // and the `unalias` on the same line runs too late to prevent it.
             Shell::Zsh | Shell::Bash => {
                 format!(
-                    "unalias {func} 2>/dev/null; function {func} {{ {} run {seat} \"$@\"; }}\n",
+                    "unalias {func} 2>/dev/null; function {func} {{ {} {verb} {seat}{rest_sh}; }}\n",
                     sh_quote(&exe)
                 )
             }
             Shell::Fish => format!(
-                "function {func}; {} run {seat} $argv; end\n",
+                "function {func}; {} {verb} {seat}{rest_fish}; end\n",
                 sh_quote(&exe)
             ),
             Shell::Powershell => {
                 format!(
-                    "function {func} {{ & '{}' run {seat} @args }}\n",
+                    "function {func} {{ & '{}' {verb} {seat}{rest_ps} }}\n",
                     exe.replace('\'', "''")
                 )
             }

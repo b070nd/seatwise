@@ -237,6 +237,9 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
         }
     }
     out.extend(unused_default_and_logins(cfg));
+    for m in crate::desktop::findings(cfg, exe) {
+        out.push(finding(Level::Warn, m));
+    }
     if exe.to_string_lossy().contains(' ') && cfg.seats.iter().any(|s| s.link() != Link::System) {
         out.push(finding(
             Level::Warn,

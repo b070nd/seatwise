@@ -1015,6 +1015,105 @@ fn a_recorded_account_without_a_login_is_signed_out() {
 }
 
 #[test]
+fn desktop_starts_each_seat_once_with_its_own_data_folder_and_environment() {
+    let e = setup_with("");
+    let ps = e.home.join("ps.txt");
+    let support = e.home.join("Library/Application Support");
+    let desktop = |args: &[&str], processes: &str| {
+        fs::write(&ps, processes).unwrap();
+        e.seat("", args)
+            .env("SEATWISE_OPEN", &e.fake_claude)
+            .env("SEATWISE_DESKTOP_PS", &ps)
+            .output()
+            .unwrap()
+    };
+    let app = "/Applications/Claude.app/Contents/MacOS/Claude";
+
+    // Nothing runs: start it, with the seat's own data folder and environment.
+    let t = ok(&desktop(&["desktop", "b"], ""));
+    assert!(
+        t.contains(&format!(
+            "ARGS=-n -a /Applications/Claude.app --env CLAUDE_CONFIG_DIR={} --env SEATWISE_SEAT=b --env BROWSER=",
+            e.home.join(".seat-b").display()
+        )),
+        "{t}"
+    );
+    assert!(
+        t.contains(&format!(
+            "--args --user-data-dir={}",
+            support.join("Claude-b").display()
+        )),
+        "{t}"
+    );
+    assert!(t.contains("started the desktop app on seat 'b'"), "{t}");
+    assert!(!t.contains("note:"), "nothing else runs: {t}");
+
+    // Already running on that data folder: never a second instance.
+    let running_b = format!(
+        "100\tSun Nov 22 22:43:01 2026\t{app} --user-data-dir={}\tSEATWISE_SEAT=b CLAUDE_CONFIG_DIR={} BROWSER=/old/copy-link\n",
+        support.join("Claude-b").display(),
+        e.home.join(".seat-b").display()
+    );
+    let t = ok(&desktop(&["desktop", "b"], &running_b));
+    assert!(t.contains("already running (pid 100"), "{t}");
+    assert!(!t.contains("ARGS="), "{t}");
+    assert!(t.contains("older setup (BROWSER differ)"), "{t}");
+
+    // A first sign-in while another instance runs: say how to avoid the stuck Google sign-in.
+    let t = ok(&desktop(&["desktop", "a"], &running_b));
+    assert!(
+        t.contains("note: seat 'a' has no desktop data folder yet") && t.contains("email"),
+        "{t}"
+    );
+    assert!(t.contains("ARGS=-n -a"), "{t}");
+
+    // Doctor: an instance without a seat, a stale one, and two on one data folder.
+    let dock = format!("200\tSun Nov 22 23:00:00 2026\t{app}\tPATH=/usr/bin\n");
+    let t = text(&desktop(
+        &["doctor"],
+        &format!("{running_b}{dock}{running_b}"),
+    ));
+    assert!(t.contains("runs without a seat (pid 200"), "{t}");
+    assert!(t.contains("restart the 'b' desktop"), "{t}");
+    assert!(
+        t.contains("two Claude desktop instances share one data folder"),
+        "{t}"
+    );
+
+    // The list of running instances.
+    let t = ok(&desktop(&["desktop"], &format!("{running_b}{dock}")));
+    assert!(
+        t.contains("seat b") && t.contains("no seat") && t.contains("main.log"),
+        "{t}"
+    );
+
+    // The app's default data folder: no --user-data-dir.
+    let mut cfg = read(&e.config);
+    cfg = cfg.replacen(
+        "name = \"a\"",
+        "name = \"a\"\ndesktop = { user_data_dir = \"default\" }",
+        1,
+    );
+    fs::write(&e.config, cfg).unwrap();
+    let t = ok(&desktop(&["desktop", "a"], ""));
+    assert!(
+        t.contains("ARGS=-n -a") && !t.contains("--user-data-dir"),
+        "{t}"
+    );
+
+    // A shell command per seat.
+    let sh = ok(&e
+        .seat("", &["shell-init", "zsh"])
+        .env("SEATWISE_DESKTOP_SHELL", "1")
+        .output()
+        .unwrap());
+    assert!(
+        sh.contains("function claude-desktop-a {") && sh.contains("desktop a; }"),
+        "{sh}"
+    );
+}
+
+#[test]
 fn shell_init_replaces_aliases_of_the_same_name() {
     // Old setups often have `alias claude-work=...`: re-sourcing shell-init over them must still define functions.
     // Unix only: on Windows `bash` may be the WSL launcher, which can't read this test's Windows paths.

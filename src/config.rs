@@ -52,6 +52,22 @@ pub struct ShellOptions {
     pub prefix: String,
     /// The same for Codex seats.
     pub codex_prefix: String,
+    /// Desktop app commands are named `<desktop_prefix><seat>` (macOS, Claude Code seats).
+    pub desktop_prefix: String,
+}
+
+/// A seat's desktop app (`[seat.desktop]`). Every field is optional: by default a seat runs the installed app with
+/// its own data folder.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Desktop {
+    /// The app bundle. Default: `/Applications/Claude.app`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app: Option<String>,
+    /// The app's data folder (its own login and settings). `"default"` is the app's usual folder; default:
+    /// `~/Library/Application Support/Claude-<seat>`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_data_dir: Option<String>,
 }
 
 /// Which coding agent a seat runs.
@@ -272,6 +288,7 @@ impl Default for ShellOptions {
             override_claude: false,
             prefix: "claude-".into(),
             codex_prefix: "codex-".into(),
+            desktop_prefix: "claude-desktop-".into(),
         }
     }
 }
@@ -368,6 +385,9 @@ pub struct Seat {
     /// `"system"` (default), `"copy"`, or a command such as `["firefox", "-P", "work", "{url}"]`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link: Option<LinkSetting>,
+    /// The desktop app for this seat (macOS).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desktop: Option<Desktop>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -412,6 +432,7 @@ impl Default for Seat {
             share: vec![],
             enforcement: None,
             link: None,
+            desktop: None,
         }
     }
 }
@@ -498,16 +519,41 @@ impl Config {
         {
             bail!("default_seat '{d}' is not a configured seat");
         }
-        if ![&self.shell.prefix, &self.shell.codex_prefix]
-            .iter()
-            .flat_map(|p| p.chars())
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        if ![
+            &self.shell.prefix,
+            &self.shell.codex_prefix,
+            &self.shell.desktop_prefix,
+        ]
+        .iter()
+        .flat_map(|p| p.chars())
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
         {
             bail!("shell.prefix may only use letters, digits, '-' and '_'");
         }
         for file in &self.track {
             if file.is_empty() || file == "." || file == ".." || file.contains(['/', '\\']) {
                 bail!("track entry '{file}' must be a plain file name in the seat's config folder");
+            }
+        }
+        let mut data_dirs = HashSet::new();
+        for seat in &self.seats {
+            if seat.desktop.is_some() && seat.agent != Agent::Claude {
+                bail!(
+                    "seat '{}': [seat.desktop] is for Claude Code seats",
+                    seat.name
+                );
+            }
+            if seat.agent == Agent::Claude {
+                let key = match crate::desktop::data_dir(seat) {
+                    Some(d) => crate::folders::key_string(&d),
+                    None => "default".into(),
+                };
+                if seat.desktop.is_some() && !data_dirs.insert(key) {
+                    bail!(
+                        "seat '{}' uses the same desktop user_data_dir as another seat; every seat needs its own",
+                        seat.name
+                    );
+                }
             }
         }
         let mut dirs = HashSet::new();

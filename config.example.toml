@@ -78,6 +78,8 @@ prefix = "claude-"
 override_claude = false
 # Codex seats get <codex_prefix><seat>.
 codex_prefix = "codex-"
+# macOS: the desktop app on a seat is <desktop_prefix><seat> (runs `seat desktop <seat>`).
+desktop_prefix = "claude-desktop-"
 
 [terminal]
 # `seat term` opens a new terminal window running a seat in a project folder (from the desktop app, via the
@@ -107,6 +109,11 @@ share = ["skills/code-review", "agents"]
 # or a command, with {url} replaced by the link:
 link = ["firefox", "-P", "work", "{url}"]
 # link = ["google-chrome", "--profile-directory=Profile 1", "{url}"]
+# The desktop app on this seat (macOS): `seat desktop work`, or claude-desktop-work. Both keys are optional; keep
+# this table last in the seat, since the keys after it belong to it.
+# [seat.desktop]
+# user_data_dir = "default"          # the app's usual data folder; default: ~/Library/Application Support/Claude-<seat>
+# app = "/Applications/Claude.app"   # the default
 
 [[seat]]
 name = "personal"

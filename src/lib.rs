@@ -3,6 +3,7 @@
 
 pub mod claude;
 pub mod config;
+pub mod desktop;
 pub mod doctor;
 pub mod edit;
 pub mod folders;
