@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-22
+
 ### Fixed
 - seatwise ignores `XDG_CONFIG_HOME` / `XDG_DATA_HOME` when they point into a temporary folder or a session's scratch
   workspace (the desktop app's sessions set them), instead of reading and writing a throwaway config there whose path
@@ -77,5 +79,6 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/b070nd/seatwise/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/b070nd/seatwise/releases/tag/v0.1.0
