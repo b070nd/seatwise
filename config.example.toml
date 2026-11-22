@@ -1,0 +1,138 @@
+# seatwise config: copy to the path printed by `seat config-path`
+# (~/.config/seatwise/config.toml on macOS/Linux, %APPDATA%\seatwise\config.toml on Windows).
+# Everything except the seats is optional; the defaults are shown.
+
+# How hard each seat is held to its folders and org (a seat can override it):
+#   "off"     folders only pick the seat; no hooks are installed
+#   "warn"    starting or prompting in another seat's folder warns; touching its files asks you first
+#   "strict"  refuse to start, block prompts and tool calls (an air gap between seats)
+# A seat signed into the wrong org always gets a warning, and is refused under "strict".
+enforcement = "off"
+
+# Seat for `seat run auto` in folders no seat owns. Unset: you're asked on a terminal, scripts get an error.
+# default_seat = "personal"
+
+# Files in each seat's config folder to snapshot on every start: a change is reported and kept in history
+# (`seat sync restore <seat>` swaps it back), a deleted file is restored. Empty: off.
+track = []
+
+# Where `share` items (below) come from. Unset: a `shared` folder next to this file.
+# shared_dir = "~/.config/seatwise/shared"
+
+# Tools the tool hook checks (a Claude Code matcher). Unset: the built-in list.
+# tool_matcher = "Read|Edit|Write|MultiEdit|NotebookEdit|Glob|Grep|LS|Bash|PowerShell"
+
+# Your own usage profiles for `seat profile <seat> <name>`: settings merged into the seat's settings.json
+# (hooks can't be set here). Built-in: light, balanced, heavy.
+# [profile.review]
+# model = "opus"
+# effortLevel = "high"
+# env = { CLAUDE_CODE_SUBAGENT_MODEL = "haiku" }
+# A profile also works for one session only, without changing settings.json: `seat run --with <name> <seat>`,
+# or `seat term`, which opens it in a new terminal window. E.g. experimental features for a single project:
+# [profile.experimental]
+# env = { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1" }
+
+# Agents in use; a turned-off agent's seats can't start (`seat disable agent:codex`, or `seat tui`).
+# [agents]
+# claude = true
+# codex = true
+
+# How a folder group's preset reaches its sessions, unless the group says otherwise:
+#   "session"  passed as --settings when seatwise starts the session; nothing on disk changes
+#   "project"  written into the project's .claude/settings.local.json, so a plain `claude` gets it too
+preset_apply = "session"
+
+# Use-case presets: usage profiles combined in order, then settings on top. Built-in: explore, build, review,
+# quick (`seat preset list`). A name here replaces the built-in one.
+# [preset.ops]
+# description = "Infrastructure work: careful, asks before every edit"
+# profiles = ["balanced"]
+# settings = { permissions = { defaultMode = "default" } }
+# enabled = true
+
+# Folder groups give a preset to their folders; the longest matching path wins. `seat group add` asks for the
+# rest; `seat explain` shows what a session in a folder gets and which layer set each value.
+# [[group]]
+# name = "services"
+# paths = ["~/code/services"]
+# preset = "build"
+# [[group]]
+# name = "legacy"
+# paths = ["~/code/services/legacy"]
+# preset = "none"                    # opts out of the parent group's preset
+# sources = ["user", "local"]        # ignore the project's own .claude/settings.json here
+# apply = "project"
+
+# The sentinel looks for settings that cost more than they need to (`seat sentinel rules`). It only reports.
+[sentinel]
+enabled = false                      # check when a seat starts, at most once per interval
+interval = "24h"                     # also used by `seat sentinel install` (launchd / systemd / Task Scheduler)
+notify = true                        # desktop notification when there are findings
+# ignore = ["mcp-unused", "allow-list@~/code/scratch"]
+
+[shell]
+# `seat shell-init` defines <prefix><seat> for every seat and alias.
+prefix = "claude-"
+# Also define plain `claude`, picking the seat from the current folder.
+override_claude = false
+# Codex seats get <codex_prefix><seat>.
+codex_prefix = "codex-"
+
+[terminal]
+# `seat term` opens a new terminal window running a seat in a project folder (from the desktop app, via the
+# seat-terminal skill, or from any shell). Profile(s) it uses when none is given with --with:
+# profile = "experimental"
+# macOS: the terminal app (Terminal, iTerm, Ghostty, ...). Elsewhere the usual terminal is found.
+# app = "iTerm"
+# Or any command, with {dir} and {cmd} replaced:
+# command = ["wezterm", "start", "--cwd", "{dir}", "--", "sh", "-c", "{cmd}"]
+
+# One [[seat]] per Claude subscription. Give every seat its own config_dir:
+# Claude Code reads `.claude/CLAUDE.md` from every parent folder, so a seat living in ~/.claude
+# leaks its instructions into every other seat's sessions under your home folder.
+[[seat]]
+name = "work"
+aliases = ["w"]                      # also creates claude-w
+config_dir = "~/.claude-work"
+org_uuid = "00000000-0000-0000-0000-000000000000"   # oauthAccount.organizationUuid in <config_dir>/.claude.json
+org_name = "Example Corp"
+email = "me@example.com"             # `seat pin work` fills org_uuid, org_name and email from the signed-in account
+# Copied from the shared folder into this seat on every start (never its login, history or settings.json):
+share = ["skills/code-review", "agents"]
+# enforcement = "strict"             # overrides the global level for this seat
+# The seat's home repo (`seat home init work` creates it): its skills, AGENTS.md and pointers to its own repos.
+# home = "~/work-home"
+# Where links (including /login) go: "system" (default browser, the default), "copy" (clipboard),
+# or a command, with {url} replaced by the link:
+link = ["firefox", "-P", "work", "{url}"]
+# link = ["google-chrome", "--profile-directory=Profile 1", "{url}"]
+
+[[seat]]
+name = "personal"
+aliases = ["p"]
+config_dir = "~/.claude-personal"
+link = "copy"
+
+# A Codex (ChatGPT) seat: its own CODEX_HOME, the same folders, hooks and link handling.
+# [[seat]]
+# name = "gpt"
+# agent = "codex"
+# config_dir = "~/.codex-gpt"
+
+# Folders: the longest matching path wins.
+#   owner = "<seat>"  `seat run auto` (and plain `claude`, if enabled) picks this seat here
+#   owner = "any"     a shared start folder: you pick the seat, and it gets its own folders as working dirs
+#   owner = "none"    under "warn"/"strict", no seat may start here or touch it, unless a longer entry assigns a subfolder
+# Under "strict", starting in a folder no seat owns is refused; reading unowned paths (e.g. /usr) is always allowed.
+[[folder]]
+path = "~/code/company"
+owner = "work"
+
+[[folder]]
+path = "~/code/mine"
+owner = "personal"
+
+[[folder]]
+path = "~/seats"
+owner = "any"

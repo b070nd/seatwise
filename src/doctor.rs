@@ -1,0 +1,353 @@
+//! `seat doctor [--fix]`: everything that would quietly weaken the isolation between seats, or stop a seat from working.
+
+use crate::claude::HookState;
+use crate::config::{Agent, Config, Enforcement, Link, Owner};
+use crate::status::{Identity, SeatStatus};
+use crate::{claude, folders, home, launch, paths, shim};
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Level {
+    Error,
+    Warn,
+    Info,
+}
+
+#[derive(Debug)]
+pub struct Finding {
+    pub level: Level,
+    pub message: String,
+    /// What `--fix` would do about it, if anything.
+    pub fix: Option<Fix>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Fix {
+    /// Install or remove the seat's hooks to match its enforcement level.
+    Hooks(String),
+    ReinstallShim,
+}
+
+fn finding(level: Level, message: impl Into<String>) -> Finding {
+    Finding {
+        level,
+        message: message.into(),
+        fix: None,
+    }
+}
+
+pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
+    let mut out = Vec::new();
+    if cfg.seats.is_empty() {
+        out.push(finding(
+            Level::Error,
+            "no seats configured: `seat init` finds your Claude config folders, or `seat add <name>`",
+        ));
+    }
+    for agent in [Agent::Claude, Agent::Codex] {
+        if cfg.seats.iter().any(|s| s.agent == agent)
+            && let Err(e) = launch::agent_binary(agent)
+        {
+            out.push(finding(Level::Error, format!("{e:#}")));
+        }
+    }
+
+    let mut accounts: BTreeMap<(String, String), Vec<&str>> = BTreeMap::new();
+    for seat in &cfg.seats {
+        let n = &seat.name;
+        if !cfg.is_enabled(seat) {
+            out.push(finding(
+                Level::Info,
+                format!("seat '{n}' is disabled; it is not checked (`seat enable {n}`)"),
+            ));
+            continue;
+        }
+        let st = SeatStatus::of(cfg, seat, exe);
+        if !seat.config_dir().is_dir() {
+            out.push(finding(
+                Level::Warn,
+                format!(
+                    "seat '{n}': config folder {} doesn't exist yet (`seat login {n}` creates it)",
+                    seat.config_dir().display()
+                ),
+            ));
+        }
+        match &st.identity {
+            Identity::SignedOut => out.push(finding(
+                Level::Info,
+                format!("seat '{n}' is not signed in: `seat login {n}`"),
+            )),
+            Identity::Unpinned => out.push(finding(
+                if st.enforcement == Enforcement::Off {
+                    Level::Info
+                } else {
+                    Level::Warn
+                },
+                format!(
+                    "seat '{n}' is signed in as {} but nothing is pinned, so a login to the wrong org goes unnoticed: `seat pin {n}`",
+                    st.account_label()
+                ),
+            )),
+            Identity::Wrong(m) => out.push(finding(Level::Error, m.clone())),
+            Identity::Ok => {}
+        }
+        if !st.hooks_ok() {
+            let message = match (st.enforcement, st.hooks) {
+                (Enforcement::Off, _) => format!(
+                    "seat '{n}': enforcement is off but seatwise hooks are still in its settings.json"
+                ),
+                (_, HookState::Missing) => format!(
+                    "seat '{n}': enforcement is {} but its hooks are not installed, so nothing is checked",
+                    st.enforcement.as_str()
+                ),
+                _ => format!("seat '{n}': its hooks point at another seatwise binary or seat name"),
+            };
+            let message = if seat.agent == Agent::Codex && st.enforcement != Enforcement::Off {
+                message + " (Codex then asks you to approve them once in /hooks)"
+            } else {
+                message
+            };
+            out.push(Finding {
+                level: if st.enforcement == Enforcement::Off {
+                    Level::Info
+                } else {
+                    Level::Error
+                },
+                message,
+                fix: Some(Fix::Hooks(n.clone())),
+            });
+        }
+        if let Some(a) = &st.account {
+            let plan = crate::plan::Plan::of(a);
+            if let (Some(pinned), Some(now)) = (&seat.plan, &plan)
+                && *pinned != now.key()
+            {
+                out.push(finding(
+                    Level::Warn,
+                    format!(
+                        "seat '{n}': its plan changed from {pinned} to {} (`seat pin {n}` accepts it, `seat profile {n}` suggests a fitting profile)",
+                        now.key()
+                    ),
+                ));
+            }
+            if a.extra_usage {
+                out.push(finding(
+                    Level::Info,
+                    format!("seat '{n}': extra usage is on, so use beyond the plan is billed"),
+                ));
+            }
+            if let Some(t) = &a.trial_ends {
+                out.push(finding(Level::Info, format!("seat '{n}': trial ends {t}")));
+            }
+            if seat.profile.is_none() && plan.is_some() && seat.agent == Agent::Claude {
+                out.push(finding(
+                    Level::Info,
+                    format!("seat '{n}' has no usage profile: `seat profile {n}` suggests one for its plan"),
+                ));
+            }
+        }
+        if seat.agent == Agent::Codex && st.enforcement != Enforcement::Off && st.hooks_ok() {
+            out.push(finding(
+                Level::Info,
+                format!("seat '{n}' runs Codex: approve the seatwise hooks once in Codex's /hooks, or they don't run"),
+            ));
+        }
+        for path in home::foreign_mentions(cfg, seat) {
+            out.push(finding(
+                Level::Warn,
+                format!("seat '{n}': its home repo mentions {path}, which leads its sessions into another seat's work"),
+            ));
+        }
+        if let Some(h) = seat.home()
+            && !h.is_dir()
+        {
+            out.push(finding(
+                Level::Warn,
+                format!(
+                    "seat '{n}': home repo {} doesn't exist (`seat home init {n}`)",
+                    h.display()
+                ),
+            ));
+        }
+        for item in &seat.share {
+            if !cfg.shared_dir().join(item).exists() {
+                out.push(finding(
+                    Level::Warn,
+                    format!(
+                        "seat '{n}': shared item '{item}' is missing from {}",
+                        cfg.shared_dir().display()
+                    ),
+                ));
+            }
+        }
+        if let Some(a) = &st.account
+            && let (Some(acc), Some(org)) = (&a.account_uuid, &a.org_uuid)
+        {
+            accounts
+                .entry((acc.clone(), org.clone()))
+                .or_default()
+                .push(n);
+        }
+    }
+    for seats in accounts.values().filter(|s| s.len() > 1) {
+        out.push(finding(
+            Level::Warn,
+            format!(
+                "seats {} are signed into the same account and org; one of them probably logged in to the wrong one",
+                seats.join(", ")
+            ),
+        ));
+    }
+
+    out.extend(instruction_leaks(cfg));
+
+    if !cfg.seats.is_empty()
+        && cfg
+            .seats
+            .iter()
+            .all(|s| cfg.enforcement_of(s) == Enforcement::Off)
+    {
+        out.push(finding(
+            Level::Info,
+            "isolation is off: sessions can read every seat's folders. Set enforcement = \"warn\" (or \"strict\") and run `seat install-hooks`",
+        ));
+    }
+    for f in &cfg.folders {
+        if !paths::expand(&f.path).exists() {
+            out.push(finding(
+                Level::Info,
+                format!("folder {} doesn't exist", f.path),
+            ));
+        }
+    }
+    for var in ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"] {
+        if std::env::var_os(var).is_some_and(|v| !v.is_empty()) {
+            out.push(finding(
+                Level::Info,
+                format!("{var} is set in this shell: seatwise clears it for seats, but a plain `claude` would bill it instead of the seat"),
+            ));
+        }
+    }
+    if exe.to_string_lossy().contains(' ') && cfg.seats.iter().any(|s| s.link() != Link::System) {
+        out.push(finding(
+            Level::Warn,
+            format!(
+                "{} has a space in its path; Claude Code may not run it as BROWSER. Install seat somewhere without spaces",
+                exe.display()
+            ),
+        ));
+    }
+    if shim::installed() {
+        let current = std::fs::read_to_string(shim::file()).ok() == Some(shim::script(exe));
+        if !current {
+            out.push(Finding {
+                level: Level::Warn,
+                message: format!(
+                    "the claude shim in {} points at another seat binary",
+                    shim::dir().display()
+                ),
+                fix: Some(Fix::ReinstallShim),
+            });
+        }
+        if !shim::first_on_path() {
+            out.push(finding(
+                Level::Warn,
+                format!(
+                    "the claude shim is installed but {} is not ahead of the real claude on PATH",
+                    shim::dir().display()
+                ),
+            ));
+        }
+    }
+    out.sort_by_key(|f| f.level);
+    out
+}
+
+/// Claude Code reads `.claude/CLAUDE.md` from every parent of the working folder. One sitting above another
+/// seat's folders (typically a seat living in `~/.claude`) is loaded into that seat's sessions too.
+fn instruction_leaks(cfg: &Config) -> Vec<Finding> {
+    let home = paths::home();
+    let mut by_file: BTreeMap<PathBuf, Vec<String>> = BTreeMap::new();
+    for f in &cfg.folders {
+        let folder = folders::normalize(&paths::expand(&f.path), &home);
+        let affected: Vec<&str> = match f.owner() {
+            Owner::Seat(s) => vec![s],
+            Owner::Any => cfg.seats.iter().map(|s| s.name.as_str()).collect(),
+            Owner::Nobody => continue,
+        };
+        // `.claude/CLAUDE.md` is Claude Code's; Codex seats don't load it.
+        let affected: Vec<&str> = affected
+            .into_iter()
+            .filter(|s| cfg.seat(s).is_some_and(|x| x.agent == Agent::Claude))
+            .collect();
+        for ancestor in folder.ancestors() {
+            let md = ancestor.join(".claude").join("CLAUDE.md");
+            if !md.is_file() {
+                continue;
+            }
+            let own = folders::key_string(&ancestor.join(".claude"));
+            for s in &affected {
+                let seat = cfg.seat(s).expect("validated config");
+                if folders::key_string(&seat.config_dir()) != own {
+                    by_file.entry(md.clone()).or_default().push(s.to_string());
+                }
+            }
+        }
+    }
+    by_file
+        .into_iter()
+        .map(|(md, mut seats)| {
+            seats.sort();
+            seats.dedup();
+            finding(
+                Level::Warn,
+                format!(
+                    "{} sits above folders of seat(s) {} and is loaded into their sessions. Move it, or give the seat that owns it its own config_dir",
+                    md.display(),
+                    seats.join(", ")
+                ),
+            )
+        })
+        .collect()
+}
+
+/// Apply the fixes doctor knows. Returns what was done.
+pub fn fix(cfg: &Config, exe: &Path, findings: &[Finding]) -> anyhow::Result<Vec<String>> {
+    let mut done = Vec::new();
+    for f in findings {
+        match &f.fix {
+            Some(Fix::Hooks(name)) => {
+                let seat = cfg.seat(name).expect("validated config");
+                let on = claude::install_hooks(cfg, seat, exe)?;
+                done.push(format!(
+                    "seat '{name}': hooks {}",
+                    if on { "installed" } else { "removed" }
+                ));
+            }
+            Some(Fix::ReinstallShim) => {
+                shim::install(exe)?;
+                done.push("claude shim reinstalled".into());
+            }
+            None => {}
+        }
+    }
+    Ok(done)
+}
+
+pub fn report(findings: &[Finding]) -> String {
+    if findings.is_empty() {
+        return "all good\n".into();
+    }
+    let mut out = String::new();
+    for f in findings {
+        let tag = match f.level {
+            Level::Error => "error",
+            Level::Warn => "warn ",
+            Level::Info => "info ",
+        };
+        let fixable = if f.fix.is_some() { " [--fix]" } else { "" };
+        out += &format!("{tag}  {}{fixable}\n", f.message);
+    }
+    out
+}

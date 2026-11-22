@@ -1,0 +1,36 @@
+[package]
+name = "seatwise"
+version = "0.1.0"
+edition = "2024"
+description = "Keep Claude Code accounts out of each other's work: per-seat config, org and folders, with optional guard hooks"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["claude-code", "isolation", "multi-account", "profiles", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "seat"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+arboard = "3.7.0"
+clap = { version = "4.6.9", features = ["derive"] }
+clap_complete = "4.6.12"
+dirs = "7.0.0"
+dunce = "1.0.5"
+notify-rust = "4.19.0"
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+sysinfo = { version = "0.40.4", default-features = false, features = ["system"] }
+toml = "1.2.2"
+toml_edit = "0.25.20"
+ureq = { version = "3.5.2", features = ["json"] }
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Console"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"
