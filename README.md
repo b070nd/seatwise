@@ -3,6 +3,7 @@
 **Agentic development seats manager: keep your Claude Code and Codex accounts from crossing into each other's work.**
 
 [![ci](https://github.com/b070nd/seatwise/actions/workflows/ci.yml/badge.svg)](https://github.com/b070nd/seatwise/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/seatwise.svg)](https://crates.io/crates/seatwise)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
 If you have a company seat and a personal plan (or two clients' seats), seatwise gives each one its own config folder,
@@ -65,10 +66,31 @@ seatwise handles these. If you only need to switch accounts, a plain alias
 
 Enforcement is off until you choose a level, so seatwise never blocks anything you didn't ask it to.
 
+## Install
+
+Any of these gives you the `seat` binary:
+
+- **From crates.io** (released versions):
+
+  ```sh
+  cargo install seatwise --locked
+  ```
+
+- **From GitHub** (the latest `main`, or a tag with `--tag v0.1.0`):
+
+  ```sh
+  cargo install --git https://github.com/b070nd/seatwise --locked
+  ```
+
+- **Prebuilt binaries** for Linux, macOS and Windows (x86_64 and arm64) are on the
+  [releases page](https://github.com/b070nd/seatwise/releases), with `checksums.txt` and build provenance
+  (`gh attestation verify <archive> -R b070nd/seatwise`). Put `seat` somewhere on your `PATH`.
+
+Update the same way you installed: `cargo install seatwise --locked` again, or download the newer release.
+
 ## Quick start
 
 ```sh
-cargo install --git https://github.com/b070nd/seatwise   # binary: seat
 seat init                     # finds your Claude config folders, pins each one's account, proposes folders
 seat doctor                   # what to fix; `seat doctor --fix` installs or removes hooks
 echo 'eval "$(seat shell-init zsh)"' >> ~/.zshrc        # bash | zsh | fish | powershell

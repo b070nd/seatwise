@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- The README covers every way to install: from crates.io (`cargo install seatwise`), from GitHub, or a prebuilt
+  release binary.
+
 ## [0.1.0] - 2026-11-22
 
 First release.

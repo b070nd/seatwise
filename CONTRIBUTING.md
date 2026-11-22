@@ -55,3 +55,5 @@ run the `seat` binary against temporary folders with fake `claude` and `codex` b
 2. Merge that, then tag the commit `vx.y.z` and push the tag. The release workflow checks that the tag, `Cargo.toml` and
    the changelog agree, builds binaries for Linux, macOS and Windows (x86_64 and arm64), and publishes them with
    checksums, build provenance and the changelog section as notes.
+3. Publish the same commit to crates.io: with the tag checked out and a clean working tree, run
+   `cargo publish --locked`. A published version can't be replaced, only yanked, so check the release first.
