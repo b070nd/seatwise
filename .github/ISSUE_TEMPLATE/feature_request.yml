@@ -1,0 +1,42 @@
+name: Feature request
+description: Suggest a new feature or an improvement.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem you want to solve before the solution. Do not paste org UUIDs, emails, tokens or private folder names.
+
+        seatwise stays generic: a feature should work for any set of seats, not one particular setup. Some things are left out on purpose (see "What seatwise leaves out, on purpose" in the README).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem would this feature solve, and who has it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How you would like seatwise to behave.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about, including workarounds you use today.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I removed org UUIDs, emails, tokens and private folder names from this request.
+          required: true
+        - label: I searched existing issues and did not find a duplicate.
+          required: true

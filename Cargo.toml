@@ -2,11 +2,15 @@
 name = "seatwise"
 version = "0.1.0"
 edition = "2024"
-description = "Keep Claude Code accounts out of each other's work: per-seat config, org and folders, with optional guard hooks"
+description = "Agentic development seats manager: keep Claude Code and Codex accounts out of each other's work, with per-seat config, org, folders and optional guard hooks"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/b070nd/seatwise"
+documentation = "https://github.com/b070nd/seatwise#readme"
 readme = "README.md"
-keywords = ["claude-code", "isolation", "multi-account", "profiles", "cli"]
+keywords = ["claude-code", "codex", "multi-account", "isolation", "cli"]
 categories = ["command-line-utilities", "development-tools"]
+
+exclude = ["/.github", "/build.sh", "/.gitattributes"]
 
 [[bin]]
 name = "seat"

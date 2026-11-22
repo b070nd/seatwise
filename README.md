@@ -1,12 +1,25 @@
 # seatwise
 
-Keep your Claude Code accounts from crossing into each other's work. If you have a company seat and a personal plan
-(or two clients' seats), seatwise gives each one its own config folder, login and organization, ties your project
-folders to the seat they belong to, and can stop a session on one seat from reading, editing or prompting in another
-seat's folders.
+**Agentic development seats manager: keep your Claude Code and Codex accounts from crossing into each other's work.**
 
-> Status: early (command line only). The setup wizard, TUI, doctor and desktop-app support are next.
-> Not affiliated with Anthropic.
+[![ci](https://github.com/b070nd/seatwise/actions/workflows/ci.yml/badge.svg)](https://github.com/b070nd/seatwise/actions/workflows/ci.yml)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+
+If you have a company seat and a personal plan (or two clients' seats), seatwise gives each one its own config folder,
+login and organization, ties your project folders to the seat they belong to, and can stop a session on one seat from
+reading, editing or prompting in another seat's folders.
+
+> Status: early (0.x). Works on macOS, Linux and Windows. Not affiliated with Anthropic or OpenAI.
+
+```text
+$ seat list
+SEAT          CONFIG              ACCOUNT                         PLAN          IDENTITY  ENFORCE  HOOKS  LINKS    PROFILE   FOLDERS
+work (w)      ~/.claude-work      <email:work> (<org-name:work>)  Team premium  ok        warn     ok     firefox  balanced  3
+personal (p)  ~/.claude-personal  <email:personal>                Max 5x        ok        warn     ok     copy     heavy     2
+codex         ~/.codex            API key                         pay per use   -         off      -      system   -         1
+```
+
+*Illustrative output, shown the way an agent or a pipe sees it: account identifiers are replaced by placeholders.*
 
 ## Why
 
@@ -55,7 +68,7 @@ Enforcement is off until you choose a level, so seatwise never blocks anything y
 ## Quick start
 
 ```sh
-cargo install --git https://github.com/OWNER/seatwise   # binary: seat
+cargo install --git https://github.com/b070nd/seatwise   # binary: seat
 seat init                     # finds your Claude config folders, pins each one's account, proposes folders
 seat doctor                   # what to fix; `seat doctor --fix` installs or removes hooks
 echo 'eval "$(seat shell-init zsh)"' >> ~/.zshrc        # bash | zsh | fish | powershell
@@ -229,6 +242,12 @@ Org UUIDs, org names, emails, account ids and login tokens are read only from yo
 | Launcher, folder and org guard, hooks, settings snapshots | yes | yes | yes |
 | Per-seat link handling (browser command, copy) | yes | yes (copy needs `wl-copy` or `xclip`) | yes |
 | Desktop app seats and link router | planned | n/a (no desktop app) | planned |
+
+## More
+
+- [docs/architecture.md](docs/architecture.md): how the pieces fit, and the module map.
+- [docs/security.md](docs/security.md): what seatwise protects, and what it does not.
+- [CHANGELOG.md](CHANGELOG.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md).
 
 ## License
 

@@ -1,0 +1,89 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag matches Cargo.toml
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          c=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          test "$v" = "$c" || { echo "tag $GITHUB_REF_NAME, Cargo.toml $c"; exit 1; }
+      - name: Release notes from the changelog
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" 'index($0, "## [" v "]") == 1 {p=1; next} p && /^## \[/ {exit} p' CHANGELOG.md > release-notes.md
+          test -s release-notes.md || { echo "CHANGELOG.md has no section for $v"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+
+  binaries:
+    needs: notes
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+          - { target: x86_64-apple-darwin, os: macos-15 }
+          - { target: aarch64-apple-darwin, os: macos-15 }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest }
+          - { target: aarch64-pc-windows-msvc, os: windows-latest }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Archive
+        shell: bash
+        run: |
+          name="seatwise-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          bin=seat; case "${{ matrix.target }}" in *windows*) bin=seat.exe;; esac
+          cp "target/${{ matrix.target }}/release/$bin" LICENSE-MIT LICENSE-APACHE README.md CHANGELOG.md config.example.toml "dist/$name/"
+          cd dist
+          case "${{ matrix.target }}" in
+            *windows*) 7z a -tzip "$name.zip" "$name" > /dev/null ;;
+            *) tar czf "$name.tar.gz" "$name" ;;
+          esac
+          rm -rf "$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.target }}
+          path: dist/*
+
+  publish:
+    needs: binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum seatwise-* > checksums.txt
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/seatwise-*
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "$GITHUB_REF_NAME" --notes-file dist/release-notes.md \
+            dist/seatwise-* dist/checksums.txt

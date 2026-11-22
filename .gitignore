@@ -1,3 +1,18 @@
+# build output
 /target
-reference/
+/seat
+/seat.exe
+
+# release artefacts
+/dist/
+
+# Local, private notes and tooling. CI fails when anything under these is tracked.
+/reference/
+/.claude/
+
+# Live configuration never belongs here: only config.example.toml is tracked.
+/config.toml
+.env
+.env.*
+
 .DS_Store
