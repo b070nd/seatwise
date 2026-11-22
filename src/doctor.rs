@@ -27,6 +27,8 @@ pub enum Fix {
     /// Install or remove the seat's hooks to match its enforcement level.
     Hooks(String),
     ReinstallShim,
+    /// Remove folder entries whose folder doesn't exist.
+    UnlinkMissing,
 }
 
 fn finding(level: Level, message: impl Into<String>) -> Finding {
@@ -222,10 +224,14 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
     }
     for f in &cfg.folders {
         if !paths::expand(&f.path).exists() {
-            out.push(finding(
-                Level::Info,
-                format!("folder {} doesn't exist", f.path),
-            ));
+            out.push(Finding {
+                level: Level::Info,
+                message: format!(
+                    "folder {} doesn't exist (`seat unlink --missing` removes such entries)",
+                    f.path
+                ),
+                fix: Some(Fix::UnlinkMissing),
+            });
         }
     }
     for var in ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"] {
@@ -237,6 +243,16 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
         }
     }
     out.extend(unused_default_and_logins(cfg));
+    for var in ["XDG_CONFIG_HOME", "XDG_DATA_HOME"] {
+        if let Some(p) = std::env::var_os(var).map(PathBuf::from)
+            && paths::session_scoped(&p)
+        {
+            out.push(finding(
+                Level::Info,
+                format!("{var} points into a temporary or session folder; seatwise ignores it and uses its usual folders"),
+            ));
+        }
+    }
     for m in crate::desktop::findings(cfg, exe) {
         out.push(finding(Level::Warn, m));
     }
@@ -394,6 +410,21 @@ pub fn fix(cfg: &Config, exe: &Path, findings: &[Finding]) -> anyhow::Result<Vec
             Some(Fix::ReinstallShim) => {
                 shim::install(exe)?;
                 done.push("claude shim reinstalled".into());
+            }
+            Some(Fix::UnlinkMissing) => {
+                if done.iter().any(|d| d.ends_with("(folder doesn't exist)")) {
+                    continue; // one pass removes them all
+                }
+                let mut file = crate::edit::ConfigFile::open()?;
+                let removed = file.unlink_missing();
+                if !removed.is_empty() {
+                    file.save()?;
+                }
+                done.extend(
+                    removed
+                        .into_iter()
+                        .map(|p| format!("{p}: entry removed (folder doesn't exist)")),
+                );
             }
             None => {}
         }

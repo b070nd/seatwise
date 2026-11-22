@@ -111,6 +111,8 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat add <name> [--from <seat>]` | New seat (or adopt a folder with `--config-dir`); `--from` copies another seat's setup, never its login |
 | `seat login <seat>` / `seat pin <seat>` | Sign a seat in; record its org and email so a wrong login is caught |
 | `seat link <seat\|any\|none> [path]`, `seat unlink`, `seat owner` | Give folders to seats |
+| `seat link --from <file>` | Many at once: one `<owner> <path>` per line; nothing is written unless every line is valid |
+| `seat unlink --missing` | Remove entries whose folder no longer exists (names no paths, so it works inside a guarded session) |
 | `claude-<seat>`, `seat run <seat\|auto>` | Start Claude Code on a seat |
 | `seat list` | Every seat: account, identity check, enforcement, hooks, link mode, folders |
 | `seat ps` | Claude Code sessions running now, by seat |
@@ -266,6 +268,22 @@ Org UUIDs, org names, emails, account ids and login tokens are read only from yo
 - Tokens are never printed. `seat usage` sends a seat's token only to Anthropic's usage endpoint, the same host
   Claude Code sends it to; seatwise refuses any other host.
 - The skills tell agents not to read seatwise's config or any seat's account files.
+
+## Good to know
+
+- **Managing other seats from inside a seat's session.** With enforcement on, a session on one seat can't name another
+  seat's folders, read seatwise's own repository, or touch folders closed to all seats; that includes `seat unlink
+  <other seat's path>`. Change other seats' setup from your own terminal. Commands that name no paths still work,
+  such as `seat unlink --missing`, `seat list` and `seat doctor`.
+- **Starting another seat from inside a session** is refused under `strict` when the current folder belongs to the
+  current seat: `claude-<other>` checks the folder the same way. Start it from that seat's folder or a shared start
+  folder.
+- **The first start of each seat** asks Claude Code's one-time questions (trusting the folder, the theme) again: every
+  seat has its own config folder.
+- **Terminals that were already open** keep their old functions and aliases. Run `eval "$(seat shell-init zsh)"` again
+  there, or open a new one.
+- **The desktop app's sessions** may point `XDG_CONFIG_HOME` into their scratch workspace; seatwise ignores such
+  folders and keeps using `~/.config/seatwise`.
 
 ## What seatwise leaves out, on purpose
 

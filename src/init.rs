@@ -124,8 +124,12 @@ fn looks_like_config(dir: &Path) -> bool {
 }
 
 /// Three or more sibling folders with the same users become their parent (e.g. one scratch folder per session).
-fn collapse_siblings(mut owners: BTreeMap<PathBuf, Vec<String>>) -> BTreeMap<PathBuf, Vec<String>> {
+/// Returns the folders and, of those, the parents that stand in for their subfolders (guesses to check).
+fn collapse_siblings(
+    mut owners: BTreeMap<PathBuf, Vec<String>>,
+) -> (BTreeMap<PathBuf, Vec<String>>, HashSet<PathBuf>) {
     let home = paths::home();
+    let mut guessed = HashSet::new();
     loop {
         let mut groups: BTreeMap<(PathBuf, Vec<String>), Vec<PathBuf>> = BTreeMap::new();
         for (path, seats) in &owners {
@@ -141,11 +145,13 @@ fn collapse_siblings(mut owners: BTreeMap<PathBuf, Vec<String>>) -> BTreeMap<Pat
         }
         let Some(((parent, seats), members)) = groups.into_iter().find(|(_, m)| m.len() >= 3)
         else {
-            return owners;
+            return (owners, guessed);
         };
         for m in members {
             owners.remove(&m);
+            guessed.remove(&m);
         }
+        guessed.insert(parent.clone());
         owners.entry(parent).or_insert(seats);
     }
 }
@@ -270,7 +276,21 @@ pub fn propose(found: &[Found]) -> String {
          # seat's folders; \"strict\" blocks it. Run `seat install-hooks` after changing this.\n\
          enforcement = \"off\"\n",
     );
+    // An agent's default folder next to named ones is usually left over from before seats: proposed commented out.
+    let home = paths::home();
+    let legacy: HashSet<&str> = found
+        .iter()
+        .filter(|f| {
+            let default = home.join(if f.codex { ".codex" } else { ".claude" });
+            f.config_dir == default
+                && found
+                    .iter()
+                    .any(|g| g.codex == f.codex && g.config_dir != default)
+        })
+        .map(|f| f.name.as_str())
+        .collect();
     for f in found {
+        let start = out.len();
         out += &format!(
             "\n[[seat]]\nname = {}\nconfig_dir = {}\n",
             quote(&f.name),
@@ -301,7 +321,25 @@ pub fn propose(found: &[Found]) -> String {
                 )
             }
         }
-        if f.config_dir == paths::home().join(".claude") && found.len() > 1 {
+        if legacy.contains(f.name.as_str()) {
+            let block: String = out[start..]
+                .lines()
+                .map(|l| {
+                    if l.is_empty() || l.starts_with('#') {
+                        format!("{l}\n")
+                    } else {
+                        format!("# {l}\n")
+                    }
+                })
+                .collect();
+            out.truncate(start);
+            out += &format!(
+                "\n# {} is the agent's default folder, next to seats with folders of their own: usually left over from\n\
+                 # before them. Not proposed as a seat; uncomment to keep it as one.{}",
+                paths::contract(&f.config_dir),
+                format_args!("\n{}", block.trim_start_matches('\n'))
+            );
+        } else if f.config_dir == home.join(".claude") && found.len() > 1 {
             out += "# This seat lives in ~/.claude: its CLAUDE.md is loaded into every seat's sessions under your\n\
                     # home folder. Consider moving it to its own folder (`seat add <name> --from default`).\n";
         }
@@ -312,15 +350,27 @@ pub fn propose(found: &[Found]) -> String {
             owners.entry(p.clone()).or_default().push(f.name.clone());
         }
     }
-    let owners = collapse_siblings(owners);
+    for seats in owners.values_mut() {
+        seats.retain(|s| !legacy.contains(s.as_str()));
+    }
+    owners.retain(|_, seats| !seats.is_empty());
+    let (owners, guessed) = collapse_siblings(owners);
     if !owners.is_empty() {
         out +=
             "\n# Folders, from where each seat's sessions ran. The longest matching path wins.\n";
     }
     for (path, seats) in owners {
         let shown = quote(&paths::contract(&path));
+        let note = if guessed.contains(&path) {
+            "\n# Guessed: sessions ran in several of its subfolders, so the whole folder is proposed. Check it."
+        } else {
+            ""
+        };
         if let [only] = seats.as_slice() {
-            out += &format!("\n[[folder]]\npath = {shown}\nowner = {}\n", quote(only));
+            out += &format!(
+                "{note}\n[[folder]]\npath = {shown}\nowner = {}\n",
+                quote(only)
+            );
         } else {
             out += &format!(
                 "\n# Used by {}: pick the owner, or make it a shared start folder (\"any\").\n# [[folder]]\n# path = {shown}\n# owner = \"\"\n",
@@ -410,8 +460,9 @@ mod tests {
             owners.insert(root.join(n), vec!["w".to_string()]);
         }
         owners.insert(root.join("d"), vec!["p".to_string()]);
-        let out = collapse_siblings(owners);
+        let (out, guessed) = collapse_siblings(owners);
         assert_eq!(out.len(), 2, "{out:?}");
         assert_eq!(out[&root], vec!["w".to_string()]);
+        assert!(guessed.contains(&root));
     }
 }

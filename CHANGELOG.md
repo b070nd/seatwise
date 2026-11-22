@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- seatwise ignores `XDG_CONFIG_HOME` / `XDG_DATA_HOME` when they point into a temporary folder or a session's scratch
+  workspace (the desktop app's sessions set them), instead of reading and writing a throwaway config there whose path
+  also contains account identifiers. `seat doctor` says when it ignored one.
+- A session started from inside another agent session (`seat run`, `seat term` from a desktop Code session) no longer
+  inherits that session's `ANTHROPIC_BASE_URL`, `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT` or `CLAUDE_CODE_SSE_PORT`. A base
+  URL set in your own shell is kept. `CLAUDE_CODE_OAUTH_TOKEN` is cleared like the other stray credentials.
 - `seat list` and `seat doctor` no longer report a seat as signed in (`IDENTITY ok`) when only its account is
   recorded: a Claude Code seat needs its login too (`.credentials.json`, or the macOS keychain item for its config
   folder). Such a seat shows `signed out (login gone)` / `SIGNED OUT`, and doctor reports it as an error.
@@ -16,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `function NAME { ... }`.
 
 ### Added
+- `seat unlink --missing` removes folder entries whose folder no longer exists; it names no paths, so it works inside
+  a guarded session. `seat doctor --fix` does the same.
+- `seat link --from <file>` assigns many folders at once from `<owner> <path>` lines, and writes nothing unless every
+  line is valid.
 - `seat desktop <seat>` (macOS) starts the installed Claude desktop app on a seat: its own data folder
   (`--user-data-dir`, default `~/Library/Application Support/Claude-<seat>`, or `user_data_dir = "default"`) and the
   seat's `CLAUDE_CONFIG_DIR`, `SEATWISE_SEAT` and `BROWSER`. It never starts a second instance on the same data
@@ -29,6 +39,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   that removes it.
 
 ### Changed
+- `seat init` no longer proposes an agent's default folder (`~/.claude`, `~/.codex`) as a seat when seats with
+  folders of their own exist: it is written commented out, as usually left over, and its folders are left out.
+  Folders guessed from sessions in several subfolders are marked "Check it".
 - seatwise is licensed under MIT only (it was MIT OR Apache-2.0), copyright b070nd. Releases up to 0.1.0 stay
   available under both licenses.
 - The README covers every way to install: from crates.io (`cargo install seatwise`), from GitHub, or a prebuilt

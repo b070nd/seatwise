@@ -140,11 +140,22 @@ enum Cmd {
     Usage { seats: Vec<String> },
     /// Give a folder (default: this one) to a seat, or make it shared ("any") or closed ("none")
     Link {
-        owner: String,
+        #[arg(required_unless_present = "from")]
+        owner: Option<String>,
         path: Option<PathBuf>,
+        /// Read many at once from a file: one `<owner> <path>` per line (`#` comments and blank lines are skipped;
+        /// owner is a seat, "any" or "none"). Nothing is written unless every line is valid
+        #[arg(long, conflicts_with_all = ["owner", "path"])]
+        from: Option<PathBuf>,
     },
     /// Remove a folder's entry (default: this one)
-    Unlink { path: Option<PathBuf> },
+    Unlink {
+        path: Option<PathBuf>,
+        /// Remove every entry whose folder no longer exists (names no paths, so it also works inside a guarded
+        /// session). A folder on a drive that isn't mounted counts as missing.
+        #[arg(long, conflicts_with = "path")]
+        missing: bool,
+    },
     /// Show which seat owns a folder (default: the current one)
     Owner { path: Option<PathBuf> },
     /// Every seat: account, identity check, enforcement, hooks, links, folders
@@ -326,6 +337,7 @@ fn main() -> ExitCode {
         println!("SEAT={}", var("SEATWISE_SEAT"));
         println!("BROWSER={}", var("BROWSER"));
         println!("PRESET={}", var("SEATWISE_PRESET"));
+        println!("BASE={}", var("ANTHROPIC_BASE_URL"));
         let key = std::env::var_os("ANTHROPIC_API_KEY").is_some();
         println!("KEY={}", if key { "set" } else { "none" });
         println!("ARGS={}", argv[1..].join(" "));
@@ -954,8 +966,60 @@ fn run(cmd: Cmd) -> Result<i32> {
             }
             Ok(i32::from(failed))
         }
-        Cmd::Link { owner, path } => {
+        Cmd::Link {
+            from: Some(file), ..
+        } => {
             let cfg = Config::load()?;
+            let text = std::fs::read_to_string(&file)
+                .with_context(|| format!("reading {}", file.display()))?;
+            let mut entries = Vec::new();
+            let mut errors = Vec::new();
+            for (n, line) in text.lines().enumerate() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                let Some((owner, path)) = line.split_once(char::is_whitespace) else {
+                    errors.push(format!("line {}: expected `<owner> <path>`", n + 1));
+                    continue;
+                };
+                let owner = match owner {
+                    seatwise::config::ANY | seatwise::config::NONE => owner.to_string(),
+                    s => match cfg.seat(s) {
+                        Some(seat) => seat.name.clone(),
+                        None => {
+                            errors.push(format!("line {}: unknown seat '{s}'", n + 1));
+                            continue;
+                        }
+                    },
+                };
+                let path = seatwise::paths::expand(path.trim());
+                if !path.is_absolute() {
+                    errors.push(format!(
+                        "line {}: {} is not an absolute path (or ~/...)",
+                        n + 1,
+                        path.display()
+                    ));
+                    continue;
+                }
+                entries.push((owner, path));
+            }
+            if !errors.is_empty() {
+                bail!("nothing written:\n  {}", errors.join("\n  "));
+            }
+            let mut file = ConfigFile::open()?;
+            for (owner, path) in &entries {
+                file.link(path, owner);
+            }
+            file.save()?;
+            for (owner, path) in &entries {
+                println!("{}: {owner}", path.display());
+            }
+            Ok(0)
+        }
+        Cmd::Link { owner, path, .. } => {
+            let cfg = Config::load()?;
+            let owner = owner.expect("required without --from");
             let owner = match owner.as_str() {
                 seatwise::config::ANY | seatwise::config::NONE => owner,
                 s => cfg
@@ -971,7 +1035,20 @@ fn run(cmd: Cmd) -> Result<i32> {
             println!("{}: {owner}", path.display());
             Ok(0)
         }
-        Cmd::Unlink { path } => {
+        Cmd::Unlink { missing: true, .. } => {
+            let mut file = ConfigFile::open()?;
+            let removed = file.unlink_missing();
+            if removed.is_empty() {
+                println!("every folder entry exists");
+                return Ok(0);
+            }
+            file.save()?;
+            for p in removed {
+                println!("{p}: entry removed (folder doesn't exist)");
+            }
+            Ok(0)
+        }
+        Cmd::Unlink { path, .. } => {
             let path = here_or(path)?;
             let mut file = ConfigFile::open()?;
             if !file.unlink(&path) {

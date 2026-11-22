@@ -85,10 +85,29 @@ pub fn data_dir() -> PathBuf {
     base.join("seatwise")
 }
 
+/// An XDG base folder, unless it points into a temporary or per-session folder: some agent sessions (the desktop
+/// app's, for one) set `XDG_CONFIG_HOME` to their scratch workspace, and seatwise would then read and write a
+/// throwaway config there instead of the user's.
 fn xdg(var: &str) -> Option<PathBuf> {
     std::env::var_os(var)
         .map(PathBuf::from)
-        .filter(|p| p.is_absolute())
+        .filter(|p| p.is_absolute() && !session_scoped(p))
+}
+
+/// Inside a temp folder or a per-session scratch workspace.
+pub fn session_scoped(p: &std::path::Path) -> bool {
+    let temp = [
+        std::env::temp_dir(),
+        PathBuf::from("/tmp"),
+        PathBuf::from("/private/tmp"),
+        PathBuf::from("/private/var/folders"),
+        PathBuf::from("/var/folders"),
+    ];
+    temp.iter().any(|t| p.starts_with(t))
+        || p.components().any(|c| {
+            let c = c.as_os_str().to_string_lossy().to_ascii_lowercase();
+            c.starts_with("scratch-workspace") || c == "scratchpad"
+        })
 }
 
 #[cfg(test)]
@@ -108,5 +127,14 @@ mod tests {
         assert_eq!(expand("/abs"), PathBuf::from("/abs"));
         assert_eq!(contract(&h.join("a").join("b")), "~/a/b");
         assert_eq!(expand(&contract(&h.join("a"))), h.join("a"));
+    }
+
+    #[test]
+    fn session_folders_are_not_config_homes() {
+        assert!(session_scoped(std::path::Path::new(
+            "/Users/u/Library/Application Support/Claude/local-agent-mode-sessions/scratch-workspaces-x/home/.config"
+        )));
+        assert!(session_scoped(&std::env::temp_dir().join("x")));
+        assert!(!session_scoped(std::path::Path::new("/Users/u/.config")));
     }
 }

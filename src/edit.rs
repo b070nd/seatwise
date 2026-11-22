@@ -314,6 +314,24 @@ impl ConfigFile {
         });
         folders.len() != before
     }
+
+    /// Remove every folder entry whose folder doesn't exist. Returns the removed paths, as written in the config.
+    pub fn unlink_missing(&mut self) -> Vec<String> {
+        let folders = self.tables("folder");
+        let mut removed = Vec::new();
+        folders.retain(|t| {
+            let Some(p) = t.get("path").and_then(|v| v.as_str()) else {
+                return true;
+            };
+            if paths::expand(p).exists() {
+                true
+            } else {
+                removed.push(p.to_string());
+                false
+            }
+        });
+        removed
+    }
 }
 
 #[cfg(test)]

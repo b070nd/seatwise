@@ -155,9 +155,25 @@ pub fn seat_command(seat: &Seat) -> Result<Command> {
         cmd.env("BROWSER", std::env::current_exe()?);
     }
     cmd.env("SEATWISE_SEAT", &seat.name);
+    // Started from inside another agent session (a desktop Code session, a CLI session running `seat term`): that
+    // session's own wiring must not reach the new one. The desktop app, for one, points ANTHROPIC_BASE_URL at itself.
+    // A base URL set in your own shell (outside any session) is left alone.
+    if std::env::var_os("CLAUDECODE").is_some()
+        || std::env::var_os("CLAUDE_CODE_ENTRYPOINT").is_some()
+    {
+        for inherited in [
+            "ANTHROPIC_BASE_URL",
+            "CLAUDECODE",
+            "CLAUDE_CODE_ENTRYPOINT",
+            "CLAUDE_CODE_SSE_PORT",
+        ] {
+            cmd.env_remove(inherited);
+        }
+    }
     for leaked in [
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
+        "CLAUDE_CODE_OAUTH_TOKEN",
         "CLAUDE_CODE_ORGANIZATION_UUID",
         "OPENAI_API_KEY",
         // The other agent's folder variable, from whatever started us.

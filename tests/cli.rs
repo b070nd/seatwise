@@ -610,6 +610,23 @@ fn init_proposes_seats_pins_and_folders_from_history() {
     assert!(cfg.contains("Used by x and y"), "{cfg}");
     assert!(cfg.contains("path = \"~/proj-b\"\nowner = \"y\""), "{cfg}");
     assert!(!cfg.contains("nested"), "covered by proj-a: {cfg}");
+    // Claude Code's default folder next to named ones: proposed commented out, its folders left out.
+    session(".claude", "p3", &e.home.join("start"));
+    let out = e
+        .seat("", &["init", "--print"])
+        .env("SEATWISE_CONFIG", e.home.join("none.toml"))
+        .output()
+        .unwrap();
+    let t = text(&out);
+    assert!(out.status.success(), "{t}");
+    assert!(
+        t.contains("~/.claude is the agent's default folder")
+            && t.contains("# [[seat]]\n# name = \"default\""),
+        "{t}"
+    );
+    assert!(!t.contains("owner = \"default\""), "{t}");
+    let proposal: seatwise_config_probe::Probe = toml::from_str(&t).unwrap();
+    assert!(proposal.seat.iter().all(|s| s.name != "default"), "{t}");
     // An existing config is never overwritten without --force.
     let out = e
         .seat("", &["init"])
@@ -617,6 +634,89 @@ fn init_proposes_seats_pins_and_folders_from_history() {
         .output()
         .unwrap();
     assert!(text(&out).contains("already exists"), "{}", text(&out));
+}
+
+/// Just enough of a config to read seat names from a proposal.
+mod seatwise_config_probe {
+    #[derive(serde::Deserialize)]
+    pub struct Probe {
+        #[serde(default)]
+        pub seat: Vec<Named>,
+    }
+    #[derive(serde::Deserialize)]
+    pub struct Named {
+        pub name: String,
+    }
+}
+
+#[test]
+fn folder_lists_and_missing_folders_are_handled_without_naming_paths() {
+    let e = setup_with("");
+    let list = e.home.join("projects.txt");
+    fs::write(
+        &list,
+        "# owner path\nalpha ~/elsewhere\n\nnone ~/closed/deep\nany ~/start\n",
+    )
+    .unwrap();
+    let t = ok(&e
+        .seat("", &["link", "--from", list.to_str().unwrap()])
+        .output()
+        .unwrap());
+    assert!(
+        t.contains("elsewhere: a") && t.contains("deep: none"),
+        "{t}"
+    );
+    assert!(read(&e.config).contains("path = \"~/elsewhere\"\nowner = \"a\""));
+    // One bad line: nothing is written.
+    fs::write(&list, "a ~/proj-b\nnobody ~/x\nb relative/path\n").unwrap();
+    let out = e
+        .seat("", &["link", "--from", list.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let t = text(&out);
+    assert!(!out.status.success(), "{t}");
+    assert!(
+        t.contains("line 2: unknown seat 'nobody'") && t.contains("line 3:"),
+        "{t}"
+    );
+    assert!(!read(&e.config).contains("path = \"~/proj-b\"\nowner = \"a\""));
+
+    // A folder that is gone: doctor points at --missing, and --missing removes it.
+    fs::remove_dir_all(e.home.join("elsewhere")).unwrap();
+    let t = text(&e.seat("", &["doctor"]).output().unwrap());
+    assert!(t.contains("unlink --missing"), "{t}");
+    let t = ok(&e.seat("", &["unlink", "--missing"]).output().unwrap());
+    assert!(t.contains("~/elsewhere: entry removed"), "{t}");
+    assert!(!read(&e.config).contains("~/elsewhere"));
+    assert!(
+        ok(&e.seat("", &["unlink", "--missing"]).output().unwrap())
+            .contains("every folder entry exists")
+    );
+}
+
+#[test]
+fn a_session_started_from_inside_another_drops_its_wiring() {
+    let e = setup();
+    let t = ok(&e
+        .seat("proj-a", &["run", "a"])
+        .env("ANTHROPIC_BASE_URL", "http://127.0.0.1:9/desktop")
+        .env("CLAUDE_CODE_OAUTH_TOKEN", "x")
+        .output()
+        .unwrap());
+    assert!(
+        t.contains("BASE=http://127.0.0.1:9/desktop"),
+        "your own base URL stays: {t}"
+    );
+    let t = ok(&e
+        .seat("proj-a", &["run", "a"])
+        .env("CLAUDE_CODE_ENTRYPOINT", "claude-desktop")
+        .env("ANTHROPIC_BASE_URL", "http://127.0.0.1:9/desktop")
+        .output()
+        .unwrap());
+    assert!(
+        t.contains("BASE=\n"),
+        "the enclosing session's base URL is dropped: {t}"
+    );
 }
 
 #[test]
