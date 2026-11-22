@@ -1017,6 +1017,10 @@ fn a_recorded_account_without_a_login_is_signed_out() {
 #[test]
 fn shell_init_replaces_aliases_of_the_same_name() {
     // Old setups often have `alias claude-work=...`: re-sourcing shell-init over them must still define functions.
+    // Unix only: on Windows `bash` may be the WSL launcher, which can't read this test's Windows paths.
+    if !cfg!(unix) {
+        return;
+    }
     let e = setup();
     let file = e.home.join("init.sh");
     fs::write(
@@ -1049,9 +1053,7 @@ fn shell_init_replaces_aliases_of_the_same_name() {
         assert!(!t.contains("alias"), "{shell} kept the alias: {t}");
         assert_eq!(t.matches("function").count(), 2, "{shell}: {t}");
     }
-    if cfg!(unix) {
-        assert!(ran > 0, "no shell to test with");
-    }
+    assert!(ran > 0, "no shell to test with");
 }
 
 #[test]
