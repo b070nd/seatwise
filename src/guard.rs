@@ -54,17 +54,20 @@ pub fn check_identity(seat: &Seat, org: Option<&str>, email: Option<&str>) -> Re
     if let (Some(want), Some(got)) = (seat.org_uuid.as_deref(), org)
         && want != got
     {
+        // No identifiers in the message: it can reach the model (hooks) and leave the machine.
+        let _ = got;
         return Err(format!(
-            "seat '{}' is signed into the wrong org ({got}). Run /login and pick {} (SEATWISE_FORCE=1 to start anyway).",
-            seat.name,
-            seat.org_name.as_deref().unwrap_or(want)
+            "seat '{}' is signed into another org than the one pinned for it. Run /login and pick the pinned org \
+             (`seat list` shows it on your terminal; SEATWISE_FORCE=1 to start anyway).",
+            seat.name
         ));
     }
     if let (Some(want), Some(got)) = (seat.email.as_deref(), email)
         && !want.eq_ignore_ascii_case(got)
     {
         return Err(format!(
-            "seat '{}' is signed in as {got}, not {want}. Run /login with the right account (SEATWISE_FORCE=1 to start anyway).",
+            "seat '{}' is signed in with another account than the one pinned for it. Run /login with the pinned \
+             account (SEATWISE_FORCE=1 to start anyway).",
             seat.name
         ));
     }

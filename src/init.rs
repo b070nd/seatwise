@@ -25,7 +25,8 @@ fn is_codex(dir: &Path) -> bool {
 }
 
 /// Config folders in the home folder (`.claude`, `.claude-*`) and `$CLAUDE_CONFIG_DIR`.
-pub fn discover() -> Vec<Found> {
+/// Config folders that look like an agent's, by path.
+fn candidate_dirs() -> Vec<PathBuf> {
     let home = paths::home();
     let mut dirs: Vec<PathBuf> = std::fs::read_dir(&home)
         .into_iter()
@@ -47,6 +48,41 @@ pub fn discover() -> Vec<Found> {
         dirs.push(d);
     }
     dirs.sort();
+    dirs
+}
+
+/// The state file holding the account signed into a config folder.
+fn state_file(dir: &Path) -> PathBuf {
+    let home = paths::home();
+    if is_codex(dir) {
+        dir.join("auth.json")
+    } else if dir == home.join(".claude") {
+        home.join(".claude.json")
+    } else {
+        dir.join(".claude.json")
+    }
+}
+
+/// The account in every config folder on this machine, with the name `init` would give its seat. Cheap: no
+/// session history is read.
+pub fn accounts() -> Vec<(String, claude::Account)> {
+    candidate_dirs()
+        .into_iter()
+        .filter(|d| looks_like_config(d))
+        .filter_map(|d| {
+            let state = state_file(&d);
+            let account = if is_codex(&d) {
+                claude::read_codex_account(&state)
+            } else {
+                claude::read_account_from(&state)
+            }?;
+            Some((seat_name(&d), account))
+        })
+        .collect()
+}
+
+pub fn discover() -> Vec<Found> {
+    let dirs = candidate_dirs();
     let mut seen = HashSet::new();
     let mut names = HashSet::new();
     let mut out = Vec::new();
@@ -55,13 +91,7 @@ pub fn discover() -> Vec<Found> {
             continue;
         }
         let codex = is_codex(&dir);
-        let state = if codex {
-            dir.join("auth.json")
-        } else if dir == home.join(".claude") {
-            home.join(".claude.json")
-        } else {
-            dir.join(".claude.json")
-        };
+        let state = state_file(&dir);
         let mut name = seat_name(&dir);
         let base = name.clone();
         let mut i = 2;

@@ -7,7 +7,11 @@ use crate::paths;
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
-pub const SKILLS: [(&str, &str); 3] = [
+pub const SKILLS: [(&str, &str); 4] = [
+    (
+        "seat-hybrid",
+        include_str!("../skills/seat-hybrid/SKILL.md"),
+    ),
     (
         "seat-terminal",
         include_str!("../skills/seat-terminal/SKILL.md"),

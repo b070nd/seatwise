@@ -83,7 +83,8 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat shim install` | A `claude` on PATH that picks the seat by folder, for IDE terminals and tools that start `claude` themselves |
 | `seat run --with <profile> <seat>` | Start with a usage profile for this session only (passed as `--settings`) |
 | `seat term [--seat s] [--with p] [--dir d] [--print]` | New terminal window running the seat in a project; from inside a session it takes that session's seat and project |
-| `seat skills install [seat]` / `seat skills show <name>` | Install the seatwise skills (`seat-terminal`, `seat-status`, `seat-home`) into seats |
+| `seat hybrid [--check] [--link] [--preset p] [--with p]` | Set up the command line for this project next to the desktop app, then open a terminal there |
+| `seat skills install [seat]` / `seat skills show <name>` | Install the seatwise skills (`seat-hybrid`, `seat-terminal`, `seat-status`, `seat-home`) into seats |
 | `seat home init <seat> [path]` / `seat home sync` | Create or adopt a seat's home repo; refresh its pointers. `seat run --home <seat>` starts there |
 | `seat tui` | One screen for seats, agents, presets, folder groups and general options; `w` writes, keeping comments |
 | `seat enable/disable <target>` | A seat, `agent:claude\|codex`, `preset:<name>`, `group:<name>` or `sentinel` |
@@ -160,9 +161,17 @@ In the desktop app, chat as usual; when a task needs the CLI (a long-running com
 shell), ask for a terminal. The `seat-terminal` skill runs `seat term`, which opens one on the same seat and project:
 
 ```sh
-seat skills install            # every seat: seat-terminal, seat-status, seat-home
-seat term --with experimental  # or from any shell: current folder, the seat that owns it
+seat skills install            # every seat: seat-hybrid, seat-terminal, seat-status, seat-home
+seat hybrid --check            # what is set up for this project, changing nothing
+seat hybrid --link --preset build --with experimental
+seat term --with experimental  # just the terminal, from any shell
 ```
+
+`seat hybrid` sets up the command-line side in one step, then opens the terminal. It makes sure the project folder
+belongs to the session's seat (`--link` assigns an unassigned one), installs the seat's skills, gives the project a
+use-case preset (`--preset`), and opens a terminal with session-only settings (`--with`). It refuses a folder that
+belongs to another seat. In the desktop app, ask for "hybrid mode" or "the CLI for this project"; the `seat-hybrid`
+skill runs `--check` first and asks before assigning folders or presets.
 
 `seat term` takes the seat from the session's config folder (or the org the desktop app exports, when exactly one seat
 is pinned to it) and the project from `CLAUDE_PROJECT_DIR`. `terminal.profile` sets the profile it uses by default.
@@ -180,6 +189,17 @@ Folders, enforcement and link handling work the same; hooks go to `hooks.json`, 
 in `/hooks`. The tool hook scans every path in Codex's tool input, including `apply_patch` file headers. `seat list`
 shows the ChatGPT plan. Usage profiles and `seat usage` are Claude Code only. Not yet checked against a real Codex
 install: the layout of `auth.json` and the exact hook input, so treat Codex isolation as best effort for now.
+
+## Privacy: identifiers stay on this computer
+
+Org UUIDs, org names, emails, account ids and login tokens are read only from your own machine's files.
+- When seatwise runs under an agent (Claude Code, Codex, or a session seatwise started) or its output isn't a
+  terminal, every identifier is replaced by a placeholder naming its seat (`<org:work>`, `<email:work>`), and any
+  other UUID or email address by `<uuid>` / `<email>`. Hook messages, which reach the model, never contain them.
+- `SEATWISE_REVEAL=1` shows them when you pipe output in your own shell. It has no effect under an agent.
+- Tokens are never printed. `seat usage` sends a seat's token only to Anthropic's usage endpoint, the same host
+  Claude Code sends it to; seatwise refuses any other host.
+- The skills tell agents not to read seatwise's config or any seat's account files.
 
 ## What seatwise leaves out, on purpose
 

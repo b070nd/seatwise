@@ -16,3 +16,6 @@ repos, one per line: `- name (what it is): path. Clone from <remote> if missing.
 
 Shared skills go in the home repo's `skills/` folder (Codex: `.agents/skills/`). seatwise copies them into the
 seat on every start.
+
+seatwise hides account identifiers in what it prints (`<org:work>`, `<email:work>`). Don't read its config file
+or any seat's account or credential files to find them, and don't try to reveal them.

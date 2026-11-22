@@ -135,6 +135,11 @@ pub fn fetch(seat: &Seat) -> Result<Usage> {
         );
     }
     let url = std::env::var("SEATWISE_USAGE_URL").unwrap_or_else(|_| ENDPOINT.into());
+    if !allowed_url(&url) {
+        bail!(
+            "refusing to send the seat's login anywhere but {ENDPOINT} (SEATWISE_USAGE_URL may only point at this computer)"
+        );
+    }
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(10)))
         .http_status_as_error(false)
@@ -166,6 +171,22 @@ pub fn fetch(seat: &Seat) -> Result<Usage> {
             seat.name
         ),
     }
+}
+
+/// The login token goes to Anthropic's own endpoint, or (for tests) to this computer; nowhere else.
+pub fn allowed_url(url: &str) -> bool {
+    if url == ENDPOINT {
+        return true;
+    }
+    let Some(rest) = url.strip_prefix("http://") else {
+        return false;
+    };
+    let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    let host = match host.rsplit_once(':') {
+        Some((h, port)) if port.chars().all(|c| c.is_ascii_digit()) => h,
+        _ => host,
+    };
+    matches!(host, "127.0.0.1" | "localhost" | "[::1]")
 }
 
 /// `2026-11-22T14:05:00Z` → `2026-11-22 14:05 UTC`; anything else as is.
@@ -227,6 +248,22 @@ mod tests {
             lines[1].contains("40%") && lines[1].contains("resets 2026-11-25 08:00 UTC"),
             "{lines:?}"
         );
+    }
+
+    #[test]
+    fn the_token_only_goes_to_anthropic_or_this_computer() {
+        assert!(allowed_url(ENDPOINT));
+        assert!(allowed_url("http://127.0.0.1:4321/usage"));
+        assert!(allowed_url("http://localhost/x"));
+        for bad in [
+            "https://api.anthropic.com.evil.io/api/oauth/usage",
+            "http://127.0.0.1.evil.io/",
+            "http://evil.io/?127.0.0.1",
+            "https://localhost/",
+            "http://user@evil.io:80/",
+        ] {
+            assert!(!allowed_url(bad), "{bad}");
+        }
     }
 
     #[test]

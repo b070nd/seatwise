@@ -84,6 +84,34 @@ enum Cmd {
         #[arg(last = true)]
         args: Vec<String>,
     },
+    /// Set up the command line for this project next to the desktop app (seat, folder, skills, preset), then
+    /// open a terminal on the same seat and project
+    Hybrid {
+        /// The seat (default: the seat of the session this runs in, else the folder's owner)
+        #[arg(long)]
+        seat: Option<String>,
+        /// The project folder (default: $CLAUDE_PROJECT_DIR, else this folder)
+        #[arg(long)]
+        dir: Option<PathBuf>,
+        /// Session-only settings for the terminal, e.g. `--with experimental` (default: terminal.profile)
+        #[arg(long = "with")]
+        with: Vec<String>,
+        /// Give the project this use-case preset (explore, build, review, quick, or your own)
+        #[arg(long)]
+        preset: Option<String>,
+        /// Give an unassigned project folder to the seat
+        #[arg(long)]
+        link: bool,
+        /// Only report; change nothing, open nothing
+        #[arg(long)]
+        check: bool,
+        /// Set up, but don't open a terminal
+        #[arg(long)]
+        no_open: bool,
+        /// Print the terminal's command instead of opening it
+        #[arg(long)]
+        print: bool,
+    },
     /// The seat's home repo: one repo with its skills, AGENTS.md and pointers to its other repos
     #[command(subcommand)]
     Home(HomeCmd),
@@ -300,6 +328,25 @@ fn main() -> ExitCode {
     // Claude Code opens links as `$BROWSER <url>`.
     if argv.len() == 2 && (argv[1].starts_with("https://") || argv[1].starts_with("http://")) {
         return finish(link::open(&argv[1]).map(|()| 0));
+    }
+    // Output that may reach an agent goes through the redactor (see privacy.rs). Commands that hand the terminal
+    // to the agent or a screen are left alone; they print no identifiers themselves.
+    let passthrough = matches!(
+        argv.get(1).map(String::as_str),
+        Some("run" | "login" | "tui" | "shell-init" | "completions" | "url")
+    );
+    if !passthrough
+        && std::env::var_os("SEATWISE_FILTERED").is_none()
+        && seatwise::privacy::active()
+    {
+        let cfg = Config::load().unwrap_or_default();
+        return match seatwise::privacy::filtered(&cfg) {
+            Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
+            Err(e) => {
+                eprintln!("seat: {e}");
+                ExitCode::FAILURE
+            }
+        };
     }
     match Cli::parse().cmd {
         Cmd::Hook(h) => hook(h),
@@ -1032,6 +1079,31 @@ fn run(cmd: Cmd) -> Result<i32> {
         }
         Cmd::ConfigPath => {
             println!("{}", paths::config_file().display());
+            Ok(0)
+        }
+        Cmd::Hybrid {
+            seat,
+            dir,
+            with,
+            preset,
+            link,
+            check,
+            no_open,
+            print,
+        } => {
+            let opts = seatwise::hybrid::Options {
+                seat,
+                dir,
+                with,
+                preset,
+                link,
+                check,
+                no_open,
+                print,
+            };
+            for line in seatwise::hybrid::run(&exe, &opts)? {
+                println!("{line}");
+            }
             Ok(0)
         }
         Cmd::Enable { target } => {

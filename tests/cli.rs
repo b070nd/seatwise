@@ -95,6 +95,13 @@ impl Env {
             .env("SEATWISE_DATA", self.home.join("data"))
             .env("SEATWISE_CLAUDE", &self.fake_claude)
             .env("ANTHROPIC_API_KEY", "leaked")
+            // Tests see real values; redaction has its own test.
+            .env("SEATWISE_REVEAL", "1")
+            .env_remove("CLAUDECODE")
+            .env_remove("CLAUDE_CODE_ENTRYPOINT")
+            .env_remove("CODEX_SANDBOX")
+            .env_remove("CODEX_SANDBOX_NETWORK_DISABLED")
+            .env_remove("SEATWISE_PRIVATE")
             .env_remove("SEATWISE_FORCE")
             .env_remove("SEATWISE_SEAT")
             .env_remove("CLAUDE_CONFIG_DIR")
@@ -191,7 +198,7 @@ fn shared_start_folder_grants_only_the_seats_own_folders() {
 fn wrong_org_is_refused_unless_forced() {
     let e = setup();
     let t = text(&e.seat("proj-b", &["run", "auto"]).output().unwrap());
-    assert!(t.contains("wrong org") && !t.contains("CFG="), "{t}");
+    assert!(t.contains("another org") && !t.contains("CFG="), "{t}");
     let t = text(
         &e.seat("proj-b", &["run", "auto"])
             .env("SEATWISE_FORCE", "1")
@@ -325,7 +332,7 @@ fn enforcement_is_off_by_default() {
     // A wrong org is still worth a warning, but doesn't stop the start.
     let t = text(&e.seat("proj-b", &["run", "auto"]).output().unwrap());
     assert!(
-        t.contains("warning") && t.contains("wrong org") && t.contains("SEAT=b"),
+        t.contains("warning") && t.contains("another org") && t.contains("SEAT=b"),
         "{t}"
     );
     // Unassigned folder, no default seat, no terminal: asks for a seat.
@@ -535,7 +542,7 @@ fn doctor_finds_missing_hooks_wrong_org_and_leaks_and_fixes_hooks() {
         t.contains("hooks are not installed") && t.contains("[--fix]"),
         "{t}"
     );
-    assert!(t.contains("wrong org"), "{t}");
+    assert!(t.contains("another org"), "{t}");
     assert!(
         t.contains("CLAUDE.md sits above folders of seat(s) a, b"),
         "{t}"
@@ -1102,4 +1109,152 @@ fn sentinel_reports_once_per_interval_and_can_be_silenced() {
     assert!(t.contains("86400") || t.contains("DAILY"), "{t}");
     let t = ok(&e.seat("", &["sentinel", "rules"]).output().unwrap());
     assert!(t.contains("mcp-unused"), "{t}");
+}
+
+#[test]
+fn identifiers_are_hidden_from_agents_and_pipes() {
+    let e = setup();
+    ok(&e.seat("", &["pin", "a"]).output().unwrap());
+    let shown = ok(&e.seat("", &["list"]).output().unwrap());
+    assert!(
+        shown.contains("Org org-a"),
+        "own terminal (reveal): {shown}"
+    );
+
+    // Under Claude Code, even an agent's own SEATWISE_REVEAL doesn't show them.
+    let t = ok(&e
+        .seat("", &["list"])
+        .env("CLAUDECODE", "1")
+        .output()
+        .unwrap());
+    assert!(!t.contains("org-a") && t.contains("<org-name:a>"), "{t}");
+    // Piped, without reveal: hidden too.
+    let t = text(
+        &e.seat("", &["doctor"])
+            .env_remove("SEATWISE_REVEAL")
+            .output()
+            .unwrap(),
+    );
+    assert!(!t.contains("org-a") && !t.contains("org-x"), "{t}");
+
+    // Before there is a config, the accounts found on the machine are hidden too.
+    fs::create_dir_all(e.home.join(".claude-x/projects")).unwrap();
+    fs::write(
+        e.home.join(".claude-x/.claude.json"),
+        r#"{"oauthAccount":{"organizationUuid":"0b9c7a52-1e4f-4f0e-9a51-6f4f0b0d2c11","organizationName":"Secret Org","emailAddress":"x@secret.example"}}"#,
+    )
+    .unwrap();
+    let t = ok(&e
+        .seat("", &["init", "--print"])
+        .env("CLAUDECODE", "1")
+        .env("SEATWISE_CONFIG", e.home.join("none.toml"))
+        .output()
+        .unwrap());
+    assert!(t.contains("[[seat]]") && t.contains("<org-name:x>"), "{t}");
+    assert!(
+        !t.contains("Secret") && !t.contains("secret.example") && !t.contains("0b9c7a52"),
+        "{t}"
+    );
+
+    // Hook messages reach the model: no identifiers in them either.
+    use std::io::Write;
+    let mut child = e
+        .seat("", &["hook", "prompt", "b"])
+        .env("CLAUDECODE", "1")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let input = serde_json::json!({ "cwd": p(&e.home.join("proj-b")), "prompt": "hi" });
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(input.to_string().as_bytes())
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    let t = text(&out);
+    assert_eq!(out.status.code(), Some(2), "{t}");
+    assert!(
+        t.contains("another org") && !t.contains("org-x") && !t.contains("org-b"),
+        "{t}"
+    );
+}
+
+#[test]
+fn hybrid_checks_then_sets_up_the_project_and_the_terminal() {
+    let e = setup_with("");
+    let t = ok(&e
+        .seat(
+            "",
+            &["hybrid", "--check", "--seat", "a", "--dir", "elsewhere"],
+        )
+        .output()
+        .unwrap());
+    assert!(
+        t.contains("not assigned") && t.contains("skills   missing"),
+        "{t}"
+    );
+    assert!(
+        !e.home.join(".seat-a/skills").exists(),
+        "--check changes nothing"
+    );
+    assert!(!read(&e.config).contains("elsewhere"));
+
+    let t = ok(&e
+        .seat(
+            "",
+            &[
+                "hybrid",
+                "--seat",
+                "a",
+                "--dir",
+                "elsewhere",
+                "--link",
+                "--preset",
+                "explore",
+                "--with",
+                "light",
+                "--print",
+            ],
+        )
+        .output()
+        .unwrap());
+    assert!(
+        t.contains("now belongs to a") && t.contains("preset   explore (group 'elsewhere')"),
+        "{t}"
+    );
+    assert!(t.contains("light"), "{t}");
+    assert!(e.home.join(".seat-a/skills/seat-hybrid/SKILL.md").is_file());
+    let t = ok(&e
+        .seat(
+            "",
+            &["hybrid", "--check", "--seat", "a", "--dir", "elsewhere"],
+        )
+        .output()
+        .unwrap());
+    assert!(
+        t.contains("owner    a: ok") && t.contains("skills   up to date"),
+        "{t}"
+    );
+    assert!(t.contains("preset   explore from group 'elsewhere'"), "{t}");
+
+    // From a session of seat b in its project; never into another seat's folder.
+    let t = ok(&e
+        .seat("", &["hybrid", "--check"])
+        .env("CLAUDE_CONFIG_DIR", e.home.join(".seat-b"))
+        .env("CLAUDE_PROJECT_DIR", e.home.join("proj-b"))
+        .output()
+        .unwrap());
+    assert!(t.contains("seat     b"), "{t}");
+    let out = e
+        .seat("", &["hybrid", "--seat", "a", "--dir", "proj-b", "--print"])
+        .output()
+        .unwrap();
+    assert!(
+        !out.status.success() && text(&out).contains("belongs to seat 'b'"),
+        "{}",
+        text(&out)
+    );
 }

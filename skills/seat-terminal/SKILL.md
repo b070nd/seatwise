@@ -26,3 +26,6 @@ same project, on the same seat (account), so nothing crosses into another seat.
    it doesn't see this conversation, so offer a short summary they can paste if the work continues there.
 
 If the command refuses because the folder belongs to another seat, report that; don't work around it.
+
+seatwise hides account identifiers in what it prints (`<org:work>`, `<email:work>`). Don't read its config file
+or any seat's account or credential files to find them, and don't try to reveal them.
