@@ -31,9 +31,12 @@ pub fn init(shell: Shell, cfg: &Config, exe: &Path) -> String {
     let mut out = String::from("# seatwise: Claude Code seats\n");
     for (func, seat) in names {
         out += &match shell {
+            // `function NAME` rather than `NAME()`: the shell would expand NAME as an alias while parsing
+            // `NAME()` (zsh: "defining function based on alias", then a parse error that aborts the whole eval),
+            // and the `unalias` on the same line runs too late to prevent it.
             Shell::Zsh | Shell::Bash => {
                 format!(
-                    "unalias {func} 2>/dev/null; {func}() {{ {} run {seat} \"$@\"; }}\n",
+                    "unalias {func} 2>/dev/null; function {func} {{ {} run {seat} \"$@\"; }}\n",
                     sh_quote(&exe)
                 )
             }
@@ -74,10 +77,10 @@ mod tests {
         };
         let zsh = init(Shell::Zsh, &cfg, Path::new("/opt/it's/seat"));
         assert!(
-            zsh.contains(r#"claude-work() { '/opt/it'\''s/seat' run work "$@"; }"#),
+            zsh.contains(r#"function claude-work { '/opt/it'\''s/seat' run work "$@"; }"#),
             "{zsh}"
         );
-        assert!(zsh.contains("claude-w() {"));
+        assert!(zsh.contains("function claude-w {"));
         assert!(!zsh.contains("claude()"), "plain claude is opt-in: {zsh}");
         let mut opted = cfg.clone();
         opted.shell.override_claude = true;

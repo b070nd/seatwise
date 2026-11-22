@@ -7,6 +7,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- `seat list` and `seat doctor` no longer report a seat as signed in (`IDENTITY ok`) when only its account is
+  recorded: a Claude Code seat needs its login too (`.credentials.json`, or the macOS keychain item for its config
+  folder). Such a seat shows `signed out (login gone)` / `SIGNED OUT`, and doctor reports it as an error.
+- `eval "$(seat shell-init zsh)"` works when aliases with the same names already exist (`alias claude=...` from an
+  older setup). zsh used to stop with a parse error and define nothing; the functions are now written as
+  `function NAME { ... }`.
+
+### Added
+- `seat doctor` warns when Claude Code's default `~/.claude` exists but no seat uses it (something started Claude
+  Code without a seat), and when the keychain still holds a login for a config folder no seat uses, with the command
+  that removes it.
+
 ### Changed
 - seatwise is licensed under MIT only (it was MIT OR Apache-2.0), copyright b070nd. Releases up to 0.1.0 stay
   available under both licenses.

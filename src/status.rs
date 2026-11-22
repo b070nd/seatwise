@@ -8,6 +8,8 @@ use std::path::Path;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Identity {
     SignedOut,
+    /// The account is still recorded, but the seat's login (credentials) is gone: signed out in practice.
+    LoggedOut,
     /// Signed in, but the seat has no org or email pinned: nothing to check against (`seat pin`).
     Unpinned,
     Ok,
@@ -25,7 +27,12 @@ pub struct SeatStatus<'a> {
 impl<'a> SeatStatus<'a> {
     pub fn of(cfg: &Config, seat: &'a Seat, exe: &Path) -> Self {
         let account = claude::read_account(seat);
+        // A Claude Code seat can keep its account in `.claude.json` after its login is gone.
+        let logged_out = account.is_some()
+            && seat.agent == crate::config::Agent::Claude
+            && !crate::usage::has_login(seat);
         let identity = match &account {
+            Some(_) if logged_out => Identity::LoggedOut,
             None => Identity::SignedOut,
             Some(_) if seat.org_uuid.is_none() && seat.email.is_none() => Identity::Unpinned,
             Some(a) => {
@@ -54,6 +61,9 @@ impl<'a> SeatStatus<'a> {
     }
 
     pub fn account_label(&self) -> String {
+        if self.identity == Identity::LoggedOut {
+            return "signed out (login gone)".into();
+        }
         match &self.account {
             None => "signed out".into(),
             Some(a)
@@ -73,6 +83,9 @@ impl<'a> SeatStatus<'a> {
 
     /// `Team premium`, `Pro +extra` (extra usage billed), `-` when signed out.
     pub fn plan_label(&self) -> String {
+        if self.identity == Identity::LoggedOut {
+            return "-".into();
+        }
         let Some(a) = &self.account else {
             return "-".into();
         };
@@ -87,6 +100,7 @@ impl<'a> SeatStatus<'a> {
     pub fn identity_label(&self) -> &'static str {
         match self.identity {
             Identity::SignedOut => "-",
+            Identity::LoggedOut => "SIGNED OUT",
             Identity::Unpinned => "not pinned",
             Identity::Ok => "ok",
             Identity::Wrong(_) => "WRONG",

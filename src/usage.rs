@@ -71,12 +71,51 @@ pub fn window_label(name: &str) -> String {
 /// The keychain item Claude Code uses for a config folder: plain for the default location, else suffixed with
 /// the first 8 hex digits of the SHA-256 of the folder's path.
 pub fn keychain_service(seat: &Seat) -> String {
-    if seat.is_default_location() {
+    keychain_service_for(&seat.config_dir(), seat.is_default_location())
+}
+
+/// [`keychain_service`] for any config folder.
+pub fn keychain_service_for(dir: &std::path::Path, default_location: bool) -> String {
+    if default_location {
         return "Claude Code-credentials".into();
     }
-    let hash = Sha256::digest(seat.config_dir().display().to_string().as_bytes());
+    let hash = Sha256::digest(dir.display().to_string().as_bytes());
     let hex: String = hash.iter().take(4).map(|b| format!("{b:02x}")).collect();
     format!("Claude Code-credentials-{hex}")
+}
+
+/// Whether a keychain item exists (macOS). Only its existence is asked for: the secret is never read, so the
+/// keychain doesn't prompt. Always false elsewhere.
+pub fn keychain_has(service: &str) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        if std::env::var_os("SEATWISE_NO_KEYCHAIN").is_some() {
+            return false;
+        }
+        std::process::Command::new("/usr/bin/security")
+            .args(["find-generic-password", "-s", service])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = service;
+        false
+    }
+}
+
+/// Whether a Claude Code seat still has a login: `.credentials.json` with an OAuth login, or on macOS the keychain
+/// item Claude Code keeps for the seat's config folder. `.claude.json` keeps the account after a logout or when
+/// the login lives elsewhere, so it alone doesn't say the seat is signed in.
+pub fn has_login(seat: &Seat) -> bool {
+    if let Ok(text) = std::fs::read_to_string(seat.config_dir().join(".credentials.json"))
+        && token_from(&text).is_some()
+    {
+        return true;
+    }
+    keychain_has(&keychain_service(seat))
 }
 
 struct Token {

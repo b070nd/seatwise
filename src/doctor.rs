@@ -78,6 +78,13 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
                 Level::Info,
                 format!("seat '{n}' is not signed in: `seat login {n}`"),
             )),
+            Identity::LoggedOut => out.push(finding(
+                Level::Error,
+                format!(
+                    "seat '{n}' is signed out: its account is still recorded, but its login is gone (no \
+                     .credentials.json or keychain item for its config folder): `seat login {n}`"
+                ),
+            )),
             Identity::Unpinned => out.push(finding(
                 if st.enforcement == Enforcement::Off {
                     Level::Info
@@ -229,6 +236,7 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
             ));
         }
     }
+    out.extend(unused_default_and_logins(cfg));
     if exe.to_string_lossy().contains(' ') && cfg.seats.iter().any(|s| s.link() != Link::System) {
         out.push(finding(
             Level::Warn,
@@ -261,6 +269,61 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
         }
     }
     out.sort_by_key(|f| f.level);
+    out
+}
+
+/// Claude Code's default config folder coming back when no seat uses it (a plain `claude`, or the desktop app
+/// started from the Dock, recreates it: signed out, without hooks), and logins left in the keychain for config
+/// folders no seat uses (a retired `~/.claude`, say). Only the names of keychain items are looked at.
+fn unused_default_and_logins(cfg: &Config) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let claude_seats: Vec<&crate::config::Seat> = cfg
+        .seats
+        .iter()
+        .filter(|s| s.agent == crate::config::Agent::Claude)
+        .collect();
+    if claude_seats.is_empty() {
+        return out;
+    }
+    let home = paths::home();
+    let default_dir = home.join(".claude");
+    let default_used = claude_seats.iter().any(|s| s.is_default_location());
+    if !default_used && default_dir.is_dir() {
+        out.push(finding(
+            Level::Warn,
+            format!(
+                "{} exists but no seat uses it: something started Claude Code without a seat (a plain `claude`, or \
+                 the desktop app from the Dock or Finder). Sessions there have no seat, hooks or pinned org",
+                paths::contract(&default_dir)
+            ),
+        ));
+    }
+    let mut candidates = vec![(default_dir.clone(), true)];
+    for e in std::fs::read_dir(&home).into_iter().flatten().flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        if name.starts_with(".claude-") && e.path().is_dir() {
+            candidates.push((e.path(), false));
+        }
+    }
+    for (dir, default_location) in candidates {
+        let used = claude_seats.iter().any(|s| {
+            crate::folders::key_string(&s.config_dir()) == crate::folders::key_string(&dir)
+        });
+        if used || (default_location && default_used) {
+            continue;
+        }
+        let service = crate::usage::keychain_service_for(&dir, default_location);
+        if crate::usage::keychain_has(&service) {
+            out.push(finding(
+                Level::Warn,
+                format!(
+                    "the keychain still holds a Claude Code login for {}, which no seat uses. Remove it if that \
+                     folder is retired: security delete-generic-password -s '{service}'",
+                    paths::contract(&dir)
+                ),
+            ));
+        }
+    }
     out
 }
 

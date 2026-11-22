@@ -41,6 +41,8 @@ fn setup_with(top: &str) -> Env {
     };
     fs::write(home.join(".seat-a/.claude.json"), account("org-a")).unwrap();
     fs::write(home.join(".seat-b/.claude.json"), account("org-x")).unwrap(); // wrong org on purpose
+    sign_in(&home.join(".seat-a"));
+    sign_in(&home.join(".seat-b"));
     let config = home.join("config.toml");
     fs::write(
         &config,
@@ -97,6 +99,8 @@ impl Env {
             .env("ANTHROPIC_API_KEY", "leaked")
             // Tests see real values; redaction has its own test.
             .env("SEATWISE_REVEAL", "1")
+            // Never look at this machine's keychain: logins come from the fixtures' .credentials.json.
+            .env("SEATWISE_NO_KEYCHAIN", "1")
             .env_remove("CLAUDECODE")
             .env_remove("CLAUDE_CODE_ENTRYPOINT")
             .env_remove("CODEX_SANDBOX")
@@ -127,6 +131,15 @@ impl Env {
             .unwrap();
         child.wait_with_output().unwrap()
     }
+}
+
+/// A fake Claude Code login for a config folder (`.claude.json` alone only records the account).
+fn sign_in(config_dir: &Path) {
+    fs::write(
+        config_dir.join(".credentials.json"),
+        r#"{"claudeAiOauth":{"accessToken":"fake","expiresAt":99999999999999}}"#,
+    )
+    .unwrap();
 }
 
 fn text(o: &Output) -> String {
@@ -472,6 +485,7 @@ fn add_pin_link_and_list() {
         r#"{"oauthAccount":{"organizationUuid":"org-c","organizationName":"Org C","emailAddress":"c@example.org"}}"#,
     )
     .unwrap();
+    sign_in(&e.home.join(".claude-c"));
     assert!(ok(&["pin", "cc"], "").contains("c@example.org"));
     assert!(read(&e.config).contains(r#"email = "c@example.org""#));
 
@@ -975,6 +989,72 @@ fn ok(o: &Output) -> String {
 }
 
 #[test]
+fn a_recorded_account_without_a_login_is_signed_out() {
+    let e = setup_with("");
+    fs::remove_file(e.home.join(".seat-a/.credentials.json")).unwrap();
+    let list = ok(&e.seat("", &["list"]).output().unwrap());
+    let row = list.lines().find(|l| l.starts_with("a ")).unwrap();
+    assert!(
+        row.contains("signed out (login gone)") && row.contains("SIGNED OUT"),
+        "{list}"
+    );
+    assert!(
+        !row.contains(" ok "),
+        "not 'identity ok' without a login: {list}"
+    );
+    let t = text(&e.seat("", &["doctor"]).output().unwrap());
+    assert!(
+        t.contains("seat 'a' is signed out") && t.contains("`seat login a`"),
+        "{t}"
+    );
+    // Claude Code's default folder coming back while no seat uses it is reported.
+    assert!(!t.contains("no seat uses it"), "{t}");
+    fs::create_dir_all(e.home.join(".claude")).unwrap();
+    let t = text(&e.seat("", &["doctor"]).output().unwrap());
+    assert!(t.contains("~/.claude exists but no seat uses it"), "{t}");
+}
+
+#[test]
+fn shell_init_replaces_aliases_of_the_same_name() {
+    // Old setups often have `alias claude-work=...`: re-sourcing shell-init over them must still define functions.
+    let e = setup();
+    let file = e.home.join("init.sh");
+    fs::write(
+        &file,
+        ok(&e.seat("", &["shell-init", "zsh"]).output().unwrap()),
+    )
+    .unwrap();
+    let script = |prelude: &str, query: &str| {
+        format!(
+            "{prelude}alias claude-a='echo old'; alias claude-alpha='echo old'\neval \"$(cat '{}')\"\n{query} claude-a; {query} claude-alpha",
+            file.display()
+        )
+    };
+    let shells = [
+        ("zsh", vec!["-f", "-c"], "", "whence -w"),
+        ("bash", vec!["-c"], "shopt -s expand_aliases\n", "type -t"),
+    ];
+    let mut ran = 0;
+    for (shell, args, prelude, query) in shells {
+        let Ok(out) = Command::new(shell)
+            .args(&args)
+            .arg(script(prelude, query))
+            .output()
+        else {
+            continue; // shell not installed
+        };
+        ran += 1;
+        let t = text(&out);
+        assert!(out.status.success(), "{shell}: {t}");
+        assert!(!t.contains("alias"), "{shell} kept the alias: {t}");
+        assert_eq!(t.matches("function").count(), 2, "{shell}: {t}");
+    }
+    if cfg!(unix) {
+        assert!(ran > 0, "no shell to test with");
+    }
+}
+
+#[test]
 fn disabled_seats_and_agents_cannot_start() {
     let e = setup();
     ok(&e.seat("", &["disable", "a"]).output().unwrap());
@@ -985,7 +1065,7 @@ fn disabled_seats_and_agents_cannot_start() {
     assert!(t.contains("which is disabled"), "{t}");
     let sh = ok(&e.seat("", &["shell-init", "zsh"]).output().unwrap());
     assert!(
-        !sh.contains("claude-a()") && sh.contains("claude-b()"),
+        !sh.contains("function claude-a ") && sh.contains("function claude-b "),
         "{sh}"
     );
     assert!(ok(&e.seat("", &["list"]).output().unwrap()).contains("a (alpha) (off)"));
