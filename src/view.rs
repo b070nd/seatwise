@@ -374,8 +374,8 @@ mod tests {
         let app = home.join("code/app");
         std::fs::create_dir_all(&app).unwrap();
         let cfg: Config = toml::from_str(&format!(
-            "[[seat]]\nname = \"w\"\nconfig_dir = \"{}\"\n[[folder]]\npath = \"{}\"\nowner = \"w\"\n\
-             [[group]]\nname = \"g\"\npaths = [\"{}\"]\npreset = \"build\"\n",
+            "[[seat]]\nname = \"w\"\nconfig_dir = '{}'\n[[folder]]\npath = '{}'\nowner = \"w\"\n\
+             [[group]]\nname = \"g\"\npaths = ['{}']\npreset = \"build\"\n",
             home.join(".cw").display(),
             app.display(),
             app.display()
