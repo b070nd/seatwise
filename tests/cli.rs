@@ -1291,6 +1291,60 @@ fn a_seat_whose_desktop_runs_in_the_default_folder_is_told_to_keep_it() {
 }
 
 #[test]
+fn compaction_tiers_are_enforced_per_seat() {
+    let e = setup_with("");
+    let t = ok(&e.seat("", &["compact", "a", "sharp"]).output().unwrap());
+    assert!(
+        t.contains("sharp (150K) (seat)") && t.contains("settings.json"),
+        "{t}"
+    );
+    assert!(read(&e.config).contains("compact = \"sharp\""));
+    let settings = read(&e.home.join(".seat-a/settings.json"));
+    assert!(
+        settings.contains("\"autoCompactWindow\": 150000"),
+        "{settings}"
+    );
+
+    // Every session gets it, over project settings; `--with` decides for one session.
+    let t = ok(&e.seat("proj-a", &["run", "a"]).output().unwrap());
+    assert!(t.contains("\"autoCompactWindow\":150000"), "{t}");
+    let t = ok(&e
+        .seat("proj-a", &["run", "--with", "lazy", "a"])
+        .output()
+        .unwrap());
+    assert!(t.contains("\"autoCompactWindow\":1000000"), "{t}");
+
+    // Changed by hand (or by the desktop app): put back on the next start.
+    fs::write(
+        e.home.join(".seat-a/settings.json"),
+        "{\"autoCompactWindow\": 900000}",
+    )
+    .unwrap();
+    let t = ok(&e.seat("proj-a", &["run", "a"]).output().unwrap());
+    assert!(t.contains("compaction at sharp (150K) set"), "{t}");
+
+    // A tier given to `seat profile` is the seat's compaction, not its usage profile.
+    let t = ok(&e.seat("", &["profile", "a", "standard"]).output().unwrap());
+    assert!(t.contains("standard (400K)"), "{t}");
+    assert!(!read(&e.config).contains("profile = \"standard\""));
+
+    // The global default, a seat that opts out, bad values.
+    ok(&e.seat("", &["compact", "all", "250k"]).output().unwrap());
+    ok(&e.seat("", &["compact", "b", "off"]).output().unwrap());
+    let t = ok(&e.seat("", &["compact"]).output().unwrap());
+    assert!(
+        t.contains("global   250K") && t.contains("standard (400K) (seat)"),
+        "{t}"
+    );
+    let out = e.seat("", &["compact", "a", "50k"]).output().unwrap();
+    assert!(
+        !out.status.success() && text(&out).contains("100000"),
+        "{}",
+        text(&out)
+    );
+}
+
+#[test]
 fn the_settings_catalog_checks_presets_where_they_are_applied() {
     let e = setup_with(
         r#"[preset.fast]

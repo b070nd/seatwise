@@ -342,6 +342,13 @@ pub fn open(cfg: &Config, seat: &Seat, exe: &Path) -> Result<Vec<String>> {
             seat.name
         );
     }
+    let mut notes = Vec::new();
+    if let Some(t) = crate::compact::enforce(cfg, seat)? {
+        notes.push(format!(
+            "compaction at {} set in the seat's settings.json",
+            crate::compact::label(t)
+        ));
+    }
     let opener = std::env::var_os("SEATWISE_OPEN").map(PathBuf::from);
     if opener.is_none() && !cfg!(target_os = "macos") {
         bail!("`seat desktop` supports macOS only for now");
@@ -378,9 +385,10 @@ pub fn open(cfg: &Config, seat: &Seat, exe: &Path) -> Result<Vec<String>> {
                 "it runs with an older setup ({diff}): quit it (Cmd-Q in that window) and run this again"
             ));
         }
+        out.extend(notes);
         return Ok(out);
     }
-    let mut out = Vec::new();
+    let mut out = notes;
     if !data.exists() && !running.is_empty() {
         out.push(format!(
             "note: seat '{}' has no desktop data folder yet, so it will ask you to sign in while {} other Claude \

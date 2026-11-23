@@ -34,6 +34,13 @@ track = []
 # [profile.experimental]
 # env = { CLAUDE_CODE_EXPERIMENTAL_CODE_MODE = "1", CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1" }
 
+# When Claude Code compacts the conversation (its autoCompactWindow setting), enforced on every Claude seat: kept in
+# the seat's settings.json (desktop sessions too) and passed with every session seatwise starts, over project
+# settings. Tiers: "sharp" (150K tokens, the smartest), "standard" (400K), "lazy" (the model's whole window), or a
+# token count such as "250k". A seat can set its own (`compact = "sharp"`, or "off" to leave it alone);
+# `seat compact <seat> <tier>` sets it, `seat run --with lazy` overrides it for one session. Unset: not enforced.
+# compact = "standard"
+
 # Agents in use; a turned-off agent's seats can't start (`seat disable agent:codex`, or `seat tui`).
 # [agents]
 # claude = true
@@ -105,6 +112,7 @@ email = "me@example.com"             # `seat pin work` fills org_uuid, org_name 
 # Copied from the shared folder into this seat on every start (never its login, history or settings.json):
 share = ["skills/code-review", "agents"]
 # enforcement = "strict"             # overrides the global level for this seat
+# compact = "sharp"                  # overrides the global compaction tier for this seat
 # The seat's home repo (`seat home init work` creates it): its skills, AGENTS.md and pointers to its own repos.
 # home = "~/work-home"
 # Where links (including /login) go: "system" (default browser, the default), "copy" (clipboard),

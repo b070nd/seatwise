@@ -79,6 +79,13 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
     for note in crate::home::apply_skills(seat)? {
         eprintln!("seat: {note}");
     }
+    if let Some(t) = crate::compact::enforce(cfg, seat)? {
+        eprintln!(
+            "seat: compaction at {} set in {}",
+            crate::compact::label(t),
+            seat.hooks_file().display()
+        );
+    }
 
     crate::sentinel::on_start(cfg, seat, &cwd);
 
@@ -116,6 +123,10 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
                 &json!({ "permissions": { "additionalDirectories": dirs } }),
             );
         }
+    }
+    // The enforced compaction window beats project and local settings; a `--with` tier below wins for this session.
+    if let Some(t) = crate::compact::of(cfg, seat) {
+        crate::preset::merge_deep(&mut session, &json!({ crate::compact::SETTING: t }));
     }
     for name in &opts.with {
         if seat.agent != Agent::Claude {

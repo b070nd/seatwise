@@ -107,6 +107,10 @@ pub const BUILTIN: [(&str, &str); 4] = [
 ];
 
 pub fn builtin(name: &str) -> Option<Value> {
+    if let Some(tier) = crate::compact::profile(name) {
+        // A compaction tier: only the window, on top of anything else (`--with heavy,sharp`).
+        return Some(tier);
+    }
     if name == "experimental" {
         // Only the features: it goes on top of a seat's own profile (`--with experimental`).
         return Some(json!({ "env": { "CLAUDE_CODE_EXPERIMENTAL_CODE_MODE": "1" } }));
@@ -139,6 +143,12 @@ pub fn all(cfg: &Config) -> Vec<(String, String)> {
         .iter()
         .filter(|(n, _)| !cfg.profiles.contains_key(*n))
         .map(|(n, d)| (n.to_string(), d.to_string()))
+        .chain(
+            crate::compact::TIERS
+                .iter()
+                .filter(|(n, _, _)| !cfg.profiles.contains_key(*n))
+                .map(|(n, _, d)| (n.to_string(), format!("compaction tier: {d}"))),
+        )
         .collect();
     for (name, t) in &cfg.profiles {
         out.push((

@@ -120,6 +120,7 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat show <seat> [--json]` | One seat in full: account, plan, identity, isolation, links, desktop app, and its projects |
 | `seat projects [--json]` | Every project folder: its seat, preset, sessions and when it was last used |
 | `seat ps` | Claude Code sessions running now, by seat |
+| `seat compact [seat\|all] [tier]` | When Claude Code compacts, enforced per seat: `sharp` (150K), `standard` (400K), `lazy` (the whole window), a token count, or `off`; without a tier, show it |
 | `seat profile <seat> [name] [--usage]` | The seat's plan, and the usage profile that fits it (`light`, `balanced`, `heavy`, or your own); with a name, apply it. `seat login` offers it right after signing in |
 | `seat usage [seat]` | 5-hour and weekly limits used, per seat (see below) |
 | `seat doctor [--fix]` | Missing or stale hooks, wrong or unpinned accounts, two seats on one account, `CLAUDE.md` leaking from a parent folder, stray API keys |
@@ -151,6 +152,30 @@ the plan is billed. `seat pin` records the plan, and `seat doctor` reports when 
 A usage profile is a few settings merged into the seat's `settings.json` (never its hooks): main model, subagent model,
 effort and extended thinking. `seat profile <seat>` suggests the one that fits the plan, one step lighter when this
 week's limit is mostly used (`--usage`). Define your own as `[profile.<name>]` tables in the config.
+
+### Compaction tiers
+
+How much context a session carries before Claude Code compacts it is its `autoCompactWindow` setting. Less old
+context keeps the model sharper; more means fewer compactions. seatwise names three tiers and enforces the one you
+pick:
+
+| Tier | Compacts at | For |
+|---|---|---|
+| `sharp` | 150K tokens | the smartest mode: the least old context in the way |
+| `standard` | 400K tokens | the default tier |
+| `lazy` | the model's whole window | as few compactions as possible |
+
+```sh
+seat compact work sharp       # this seat; also: a token count such as 250k, or off
+seat compact all standard     # every seat that sets none of its own
+seat compact                  # what each seat gets
+seat run --with lazy work     # this one session only
+```
+
+An enforced tier is kept in the seat's `settings.json` (so desktop app sessions get it too, and a change made there
+is put back on the next start) and passed with every session seatwise starts, where it beats project and local
+settings. Claude Code caps the window at the model's own, so on a 200K model every tier above it compacts at 200K.
+The tiers are profiles too: a preset can list one in its `profiles`.
 
 `seat usage` asks the endpoint Claude Code's `/usage` uses, with the seat's own login (its `.credentials.json`, or on
 macOS its keychain item, which may ask you to allow access). That endpoint is undocumented and may change. The token

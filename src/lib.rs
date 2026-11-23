@@ -3,6 +3,7 @@
 
 pub mod catalog;
 pub mod claude;
+pub mod compact;
 pub mod config;
 pub mod desktop;
 pub mod doctor;

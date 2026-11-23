@@ -234,6 +234,10 @@ pub fn seat(
                 Health::Off
             },
         ),
+        match crate::compact::of(cfg, seat) {
+            Some(t) => fact("compaction", crate::compact::label(t), Health::Good),
+            None => fact("compaction", "not enforced (`seat compact`)", Health::Off),
+        },
         fact("config", paths::contract(&seat.config_dir()), Health::Good),
         {
             let have = crate::skills::state(seat, exe);

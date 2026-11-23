@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Compaction tiers: `seat compact <seat> sharp|standard|lazy` (150K tokens, the smartest; 400K; the model's whole
+  window), a token count such as `250k`, or `off`; `seat compact all <tier>` sets the default for every seat. The
+  tier is Claude Code's `autoCompactWindow`, enforced: kept in the seat's settings.json (so desktop app sessions get it
+  too) and passed with every session seatwise starts, where it beats project and local settings. The tiers are also
+  profiles (`seat run --with lazy`, a preset's `profiles`), and `seat show` and `seat tui` show a seat's tier.
+
 ## [0.4.2] - 2026-11-23
 
 ### Changed

@@ -139,6 +139,13 @@ enum Cmd {
         #[arg(long)]
         usage: bool,
     },
+    /// When Claude Code compacts the conversation, enforced per seat: sharp (150K tokens, the smartest), standard
+    /// (400K) or lazy (the model's whole window), a token count such as 250k, or off. Without a value, show it
+    Compact {
+        /// A seat, or `all` for the global default (without it: every seat)
+        seat: Option<String>,
+        value: Option<String>,
+    },
     /// How much of each seat's 5-hour and weekly limits is used (asks Anthropic with each seat's own login)
     Usage { seats: Vec<String> },
     /// Give a folder (default: this one) to a seat, or make it shared ("any") or closed ("none")
@@ -430,6 +437,83 @@ fn preset_session(cfg: &Config, d: seatwise::draft::Draft, interactive: bool) ->
         d.name, d.name
     );
     Ok(0)
+}
+
+/// `seat compact [seat|all] [value]`.
+fn compact_cmd(seat: Option<String>, value: Option<String>) -> Result<i32> {
+    use seatwise::compact;
+    let cfg = Config::load()?;
+    let shown = |cfg: &Config, s: &Seat| -> String {
+        match compact::of(cfg, s) {
+            Some(t) => {
+                let from = if s.compact.is_some() {
+                    "seat"
+                } else {
+                    "global"
+                };
+                format!("{} ({from})", compact::label(t))
+            }
+            None if s.agent != seatwise::config::Agent::Claude => "- (Codex)".into(),
+            None => "not enforced".into(),
+        }
+    };
+    match (seat, value) {
+        (seat, None) => {
+            let seats: Vec<&Seat> = match seat.as_deref() {
+                None | Some("all") => cfg.seats.iter().collect(),
+                Some(s) => vec![cfg.seat(s).with_context(|| format!("unknown seat '{s}'"))?],
+            };
+            if let Some(g) = &cfg.compact {
+                println!(
+                    "global   {}",
+                    compact::label(compact::parse(&g.as_text())?.unwrap_or(0))
+                );
+            }
+            for s in seats {
+                println!("{:<8} {}", s.name, shown(&cfg, s));
+            }
+            let tiers: Vec<String> = compact::TIERS
+                .iter()
+                .map(|(n, t, _)| format!("{n} {}", compact::tokens(*t)))
+                .collect();
+            println!("tiers    {} (or a token count, or off)", tiers.join(", "));
+            Ok(0)
+        }
+        (seat, Some(value)) => {
+            compact::parse(&value)?; // refuse before writing
+            let mut file = ConfigFile::open()?;
+            let off = value.eq_ignore_ascii_case("off");
+            match seat.as_deref() {
+                None | Some("all") => {
+                    file.set(&[], "compact", (!off).then(|| value.as_str().into()))?;
+                }
+                Some(s) => {
+                    let name = cfg
+                        .seat(s)
+                        .with_context(|| format!("unknown seat '{s}'"))?
+                        .name
+                        .clone();
+                    file.set_seat(&name, "compact", &value)?;
+                }
+            }
+            file.save()?;
+            let cfg = Config::load()?;
+            let seats: Vec<&Seat> = match seat.as_deref() {
+                None | Some("all") => cfg.seats.iter().collect(),
+                Some(s) => vec![cfg.seat(s).expect("checked")],
+            };
+            for s in seats {
+                let changed = compact::enforce(&cfg, s)?;
+                let note = if changed.is_some() {
+                    ", written to its settings.json"
+                } else {
+                    ""
+                };
+                println!("seat '{}': compaction {}{note}", s.name, shown(&cfg, s));
+            }
+            Ok(0)
+        }
+    }
 }
 
 fn main() -> ExitCode {
@@ -1034,6 +1118,17 @@ fn run(cmd: Cmd) -> Result<i32> {
             println!("{}", pin(seat)?);
             Ok(0)
         }
+        Cmd::Profile {
+            seat: seat_name,
+            name: Some(name),
+            ..
+        } if seatwise::compact::tier(&name).is_some()
+            && !Config::load()?.profiles.contains_key(&name) =>
+        {
+            // A compaction tier is enforced on the seat, next to its usage profile, not instead of it.
+            compact_cmd(Some(seat_name), Some(name))
+        }
+        Cmd::Compact { seat, value } => compact_cmd(seat, value),
         Cmd::Profile { seat, name, usage } => {
             let cfg = Config::load()?;
             let seat = cfg

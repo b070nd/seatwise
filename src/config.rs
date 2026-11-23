@@ -322,6 +322,10 @@ pub struct Config {
     pub preset_apply: Apply,
     #[serde(default)]
     pub sentinel: SentinelOptions,
+    /// When Claude Code compacts the conversation, enforced on every Claude seat: a tier (`sharp`, `standard`,
+    /// `lazy`) or a token count. A seat can override it. Unset: Claude Code's own setting stands.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compact: Option<Compact>,
     /// Use-case presets; a name here replaces a built-in one.
     #[serde(
         default,
@@ -382,12 +386,32 @@ pub struct Seat {
     /// Overrides the global `enforcement` for this seat.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enforcement: Option<Enforcement>,
+    /// Overrides the global `compact` for this seat; `"off"` leaves its settings alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compact: Option<Compact>,
     /// `"system"` (default), `"copy"`, or a command such as `["firefox", "-P", "work", "{url}"]`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link: Option<LinkSetting>,
     /// The desktop app for this seat (macOS).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub desktop: Option<Desktop>,
+}
+
+/// A compaction tier or token count: `compact = "sharp"`, `compact = "250k"` or `compact = 250000`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Compact {
+    Tokens(u64),
+    Text(String),
+}
+
+impl Compact {
+    pub fn as_text(&self) -> String {
+        match self {
+            Compact::Tokens(n) => n.to_string(),
+            Compact::Text(t) => t.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -431,6 +455,7 @@ impl Default for Seat {
             profile: None,
             share: vec![],
             enforcement: None,
+            compact: None,
             link: None,
             desktop: None,
         }
@@ -496,6 +521,15 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
+        if let Some(c) = &self.compact {
+            crate::compact::parse(&c.as_text())?;
+        }
+        for seat in &self.seats {
+            if let Some(c) = &seat.compact {
+                crate::compact::parse(&c.as_text())
+                    .with_context(|| format!("seat '{}'", seat.name))?;
+            }
+        }
         let mut names = HashSet::new();
         for seat in &self.seats {
             for name in std::iter::once(&seat.name).chain(&seat.aliases) {
