@@ -390,4 +390,4 @@ Org UUIDs, org names, emails, account ids and login tokens are read only from yo
 
 ## License
 
-[MIT](LICENSE)
+MIT © 2026 b070nd. See [LICENSE](LICENSE).
