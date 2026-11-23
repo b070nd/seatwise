@@ -13,10 +13,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   combinations the docs warn about. `seat settings search`, `seat settings show` and `seat settings check` use it.
   `seat doctor` and `seat explain` check presets and profiles against it: bad values, typos with suggestions, and
   settings Claude Code ignores where a preset is applied.
+- `seat preset new` and `seat preset edit`: build or change a preset step by step in the terminal. Only settings
+  Claude Code honors where the preset is applied are offered, and choices that add a problem (bad values, typos,
+  documented clashes) are refused, so what it writes is valid. `seat preset set`, `unset`, `profiles` and `options`
+  do the same one setting at a time, for scripts and skills.
+- `seat show <seat>` and `seat projects` (both with `--json`): a seat in full, with its projects, and every project
+  folder with its seat, preset, session count and last use.
 - A built-in `experimental` profile that turns on Claude Code's experimental Code Mode for a session
   (`--with experimental`).
 
 ### Changed
+- `seat tui` is redesigned: a list on the left and a card on the right, colored by health. Each seat card shows
+  account, plan, identity, isolation, links, profile, desktop app, usage limits as bars (`u` loads them) and the
+  seat's projects. A new Projects tab shows each folder's seat, preset, sessions, last use, and what a session there
+  runs with. On the Presets tab, `e` opens an editor that searches the settings catalog and only takes valid choices.
+- The seat views (`seat show`, `seat tui`) say "hooks outdated" rather than "hooks missing" when a seat's hooks point at another `seat` binary.
 - Session presets and profiles export environment variables Claude Code reads only from the launch environment, so
   they take effect instead of being ignored in `--settings`.
 

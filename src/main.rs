@@ -161,6 +161,17 @@ enum Cmd {
     /// Every seat: account, identity check, enforcement, hooks, links, folders
     #[command(alias = "status")]
     List,
+    /// One seat in full: account, plan, identity, isolation, links, desktop app, and its projects
+    Show {
+        seat: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Every project folder: its seat, preset, sessions and when it was last used
+    Projects {
+        #[arg(long)]
+        json: bool,
+    },
     /// Claude Code sessions running now, by seat
     Ps,
     /// Check for anything that weakens the isolation between seats or stops one from working
@@ -261,6 +272,37 @@ enum PresetCmd {
     List,
     /// A preset's resolved settings
     Show { name: String },
+    /// Build a new preset step by step (a wizard in a terminal); only valid choices are taken
+    New {
+        name: String,
+        /// Start from a preset or a profile
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
+        /// Ask step by step even when input isn't a terminal
+        #[arg(long)]
+        interactive: bool,
+    },
+    /// Change a preset step by step (a wizard)
+    Edit { name: String },
+    /// Set one setting or environment variable in a preset; refused when Claude Code wouldn't accept it there
+    Set {
+        name: String,
+        key: String,
+        value: String,
+    },
+    /// Remove a setting or environment variable from a preset
+    Unset { name: String, key: String },
+    /// The usage profiles a preset builds on, in order (none: clear them)
+    Profiles { name: String, profiles: Vec<String> },
+    /// The settings a preset can take now, with their values (what the wizard offers)
+    Options {
+        name: String,
+        query: Vec<String>,
+        #[arg(long)]
+        experimental: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -355,6 +397,36 @@ enum ShimCmd {
 enum SyncCmd {
     /// Swap the tracked files back to their previous version (run again to undo)
     Restore { seat: String },
+}
+
+/// A draft of a preset to change: yours, or a built-in one (changing it writes your own copy).
+fn draft_of(cfg: &Config, name: &str) -> Result<seatwise::draft::Draft> {
+    seatwise::draft::Draft::from_preset(cfg, name, name)
+}
+
+/// Run the wizard on a draft in a terminal (or when asked), else write the draft as it is.
+fn preset_session(cfg: &Config, d: seatwise::draft::Draft, interactive: bool) -> Result<i32> {
+    let terminal = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+    let d = if terminal || interactive {
+        let stdin = std::io::stdin();
+        match seatwise::wizard::run(cfg, d, &mut stdin.lock(), &mut std::io::stdout())? {
+            Some(d) => d,
+            None => {
+                println!("nothing written");
+                return Ok(1);
+            }
+        }
+    } else {
+        d
+    };
+    let mut file = ConfigFile::open()?;
+    d.save(cfg, &mut file)?;
+    file.save()?;
+    println!(
+        "preset '{}' written; `seat group add <folder> --preset {}` gives it to folders",
+        d.name, d.name
+    );
+    Ok(0)
 }
 
 fn main() -> ExitCode {
@@ -1111,6 +1183,31 @@ fn run(cmd: Cmd) -> Result<i32> {
             print!("{}", status::list(&Config::load()?, &exe));
             Ok(0)
         }
+        Cmd::Show { seat, json } => {
+            let cfg = Config::load()?;
+            let s = cfg
+                .seat(&seat)
+                .with_context(|| format!("unknown seat '{seat}' (`seat list`)"))?;
+            let v = seatwise::view::seat(&cfg, s, &exe, &seatwise::desktop::running(&cfg));
+            if json {
+                println!("{}", serde_json::to_string_pretty(&v)?);
+            } else {
+                print!("{}", seatwise::view::seat_text(&v));
+            }
+            Ok(0)
+        }
+        Cmd::Projects { json } => {
+            let cfg = Config::load()?;
+            let p = seatwise::view::projects(&cfg);
+            if json {
+                println!("{}", serde_json::to_string_pretty(&p)?);
+            } else if p.is_empty() {
+                println!("no project folders yet: `seat link <seat> <folder>`");
+            } else {
+                print!("{}", seatwise::view::projects_text(&p, true));
+            }
+            Ok(0)
+        }
         Cmd::Ps => {
             // Works before there is a config too: sessions then show their config folder.
             let cfg = if paths::config_file().exists() {
@@ -1391,6 +1488,118 @@ fn run(cmd: Cmd) -> Result<i32> {
             } else {
                 0
             })
+        }
+        Cmd::Preset(PresetCmd::New {
+            name,
+            from,
+            description,
+            interactive,
+        }) => {
+            let cfg = Config::load()?;
+            if cfg.presets.contains_key(&name) {
+                anyhow::bail!("preset '{name}' exists; `seat preset edit {name}` changes it");
+            }
+            let mut d = match from.as_deref() {
+                None => seatwise::draft::Draft::new(&name),
+                Some(f) if seatwise::preset::get(&cfg, f).is_some() => {
+                    seatwise::draft::Draft::from_preset(&cfg, f, &name)?
+                }
+                Some(f) => seatwise::draft::Draft::from_profile(&cfg, f, &name)?,
+            };
+            if let Some(text) = description {
+                d.description = text;
+            }
+            preset_session(&cfg, d, interactive)
+        }
+        Cmd::Preset(PresetCmd::Edit { name }) => {
+            let cfg = Config::load()?;
+            let d = seatwise::draft::Draft::from_preset(&cfg, &name, &name)?;
+            preset_session(&cfg, d, true)
+        }
+        Cmd::Preset(PresetCmd::Set { name, key, value }) => {
+            let cfg = Config::load()?;
+            let mut d = draft_of(&cfg, &name)?;
+            let notes = d.set(&cfg, &key, &value)?;
+            let mut file = ConfigFile::open()?;
+            d.save(&cfg, &mut file)?;
+            file.save()?;
+            println!("preset '{name}': {key} = {value}");
+            for n in notes {
+                println!("note: {}", n.message);
+            }
+            Ok(0)
+        }
+        Cmd::Preset(PresetCmd::Unset { name, key }) => {
+            let cfg = Config::load()?;
+            let mut d = draft_of(&cfg, &name)?;
+            if !d.unset(&key) {
+                println!("preset '{name}' doesn't set {key}");
+                return Ok(1);
+            }
+            let mut file = ConfigFile::open()?;
+            d.save(&cfg, &mut file)?;
+            file.save()?;
+            println!("preset '{name}': {key} removed");
+            Ok(0)
+        }
+        Cmd::Preset(PresetCmd::Profiles { name, profiles }) => {
+            let cfg = Config::load()?;
+            let mut d = draft_of(&cfg, &name)?;
+            d.set_profiles(&cfg, &profiles)?;
+            let mut file = ConfigFile::open()?;
+            d.save(&cfg, &mut file)?;
+            file.save()?;
+            println!(
+                "preset '{name}': profiles {}",
+                if profiles.is_empty() {
+                    "-".into()
+                } else {
+                    profiles.join(" + ")
+                }
+            );
+            Ok(0)
+        }
+        Cmd::Preset(PresetCmd::Options {
+            name,
+            query,
+            experimental,
+        }) => {
+            let cfg = Config::load()?;
+            let d = draft_of(&cfg, &name).unwrap_or_else(|_| seatwise::draft::Draft::new(&name));
+            let options = d.options(&cfg, &query.join(" "), experimental);
+            println!(
+                "preset '{name}' is applied in {}; these settings can go in it:",
+                d.target.label()
+            );
+            for o in &options {
+                let now = o
+                    .current
+                    .as_ref()
+                    .map(|v| format!("  [now {v}]"))
+                    .unwrap_or_default();
+                let exp = if o.entry.experimental() {
+                    "  (experimental)"
+                } else {
+                    ""
+                };
+                let values = if o.values.is_empty() {
+                    o.entry.type_label()
+                } else {
+                    o.values.join(" | ")
+                };
+                println!(
+                    "{}{exp}{now}\n    {}\n    values: {values}",
+                    o.entry.name, o.entry.meaning
+                );
+                if let Some(b) = &o.blocked {
+                    println!("    not now: {b}");
+                }
+            }
+            println!(
+                "{} setting(s). `seat preset set {name} <key> <value>` sets one.",
+                options.len()
+            );
+            Ok(0)
         }
         Cmd::Preset(PresetCmd::Show { name }) => {
             let cfg = Config::load()?;

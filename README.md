@@ -63,7 +63,9 @@ seatwise handles these. If you only need to switch accounts, a plain alias
   every time; `seat explain` shows every layer and what it set.
 - **A sentinel** that checks, on start or on a schedule, for settings that cost more than they need to, and only
   reports.
-- **`seat tui`:** turn seats, agents, presets, groups and the sentinel on and off in one screen.
+- **`seat tui`:** one screen with a card per seat (account, plan, identity, isolation, desktop app, usage limits,
+  its projects) and per project (seat, preset, sessions, last used, what a session there runs with). It also has an
+  editor for preset settings that only takes valid choices, and switches for agents, groups and the sentinel.
 - **Optional settings snapshots:** tracked files (e.g. `settings.json`) are checked on every start; changes are kept in
   history and `seat sync restore <seat>` brings the old version back.
 
@@ -115,6 +117,8 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat unlink --missing` | Remove entries whose folder no longer exists (names no paths, so it works inside a guarded session) |
 | `claude-<seat>`, `seat run <seat\|auto>` | Start Claude Code on a seat |
 | `seat list` | Every seat: account, identity check, enforcement, hooks, link mode, folders |
+| `seat show <seat> [--json]` | One seat in full: account, plan, identity, isolation, links, desktop app, and its projects |
+| `seat projects [--json]` | Every project folder: its seat, preset, sessions and when it was last used |
 | `seat ps` | Claude Code sessions running now, by seat |
 | `seat profile <seat> [name] [--usage]` | The seat's plan, and the usage profile that fits it (`light`, `balanced`, `heavy`, or your own); with a name, apply it. `seat login` offers it right after signing in |
 | `seat usage [seat]` | 5-hour and weekly limits used, per seat (see below) |
@@ -127,9 +131,11 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat hybrid [--check] [--link] [--preset p] [--with p]` | Set up the command line for this project next to the desktop app, then open a terminal there |
 | `seat skills install [seat]` / `seat skills show <name>` | Install the seatwise skills (`seat-hybrid`, `seat-terminal`, `seat-status`, `seat-home`) into seats |
 | `seat home init <seat> [path]` / `seat home sync` | Create or adopt a seat's home repo; refresh its pointers. `seat run --home <seat>` starts there |
-| `seat tui` | One screen for seats, agents, presets, folder groups and general options; `w` writes, keeping comments |
+| `seat tui` | Seat and project cards, a preset editor, and switches for agents, groups and general options; `w` writes, keeping comments |
 | `seat enable/disable <target>` | A seat, `agent:claude\|codex`, `preset:<name>`, `group:<name>` or `sentinel` |
 | `seat preset list` / `seat preset show <name>` | Use-case presets and their resolved settings |
+| `seat preset new <name> [--from p]` / `seat preset edit <name>` | Build or change a preset step by step; only valid choices are taken |
+| `seat preset set\|unset <name> <key> [value]` / `seat preset options <name> [words]` | Change one setting of a preset; what it can take now |
 | `seat settings search [words] [--experimental]` | Every Claude Code setting and environment variable, from the settings catalog |
 | `seat settings show <key>` / `seat settings check <preset>` | What a setting does and where Claude Code honors it; check a preset or profile |
 | `seat group add [folder]` / `list` / `remove` | Give folders a preset; asks for preset and apply mode on a terminal |
@@ -197,6 +203,24 @@ where the preset lands. Code Mode, for example, works from `--settings` (a `sess
 `.claude/settings.local.json` (an `apply = "project"` preset). seatwise exports variables Claude Code reads only from
 the launch environment itself, so they work in session presets too. Keys the catalog doesn't know get a warning, never
 an error, so a new Claude Code release doesn't break your config.
+
+### Building your own presets
+
+`seat preset new <name>` (optionally `--from build`, or from a profile) walks you through a preset in the terminal. You
+can search the catalog, list experimental settings, pick values from lists, choose profiles, and see the merged result
+before writing. It only offers settings Claude Code honors where the preset will be applied, and it refuses a choice
+that adds a problem: a value Claude Code doesn't take, a typo, or a documented clash (`CLAUDE_CODE_EFFORT_LEVEL` next to
+`effortLevel`, say). So whatever it writes is valid. `seat preset edit <name>` changes one the same way, comments in the
+config included.
+
+For scripts and skills, the same checks run one setting at a time:
+
+```sh
+seat preset options fast effort          # what the preset can take now, with values
+seat preset set fast CLAUDE_CODE_EXPERIMENTAL_CODE_MODE 1
+seat preset unset fast effortLevel
+seat preset profiles fast balanced
+```
 
 The built-in `experimental` profile turns on Claude Code's newest experimental features for one session:
 `seat run <seat> --with experimental`, or `seat hybrid --with experimental` next to the desktop app. Today that's

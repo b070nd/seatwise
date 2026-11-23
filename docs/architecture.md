@@ -28,6 +28,7 @@ One module per concern, in `src/`:
 | `claude` | Claude Code's and Codex's own files: the signed-in account, hooks in `settings.json` / `hooks.json` |
 | `launch` | Starting an agent on the right seat with its environment, settings layers and preset |
 | `preset` | Use-case presets for folder groups, resolved the same way every time, and `seat explain` |
+| `draft`, `wizard` | Building a preset one valid choice at a time (`seat preset new/edit/set`), and the step-by-step wizard over it |
 | `catalog` | The settings catalog (`catalog/claude-code.toml`): every Claude Code setting and env var, where it's honored, and checks |
 | `plan`, `usage` | The seat's plan, usage profiles sized to it, and the rate limits used |
 | `sentinel` | Fixed checks for costly settings, the report, notifications and the OS scheduler entries |
@@ -38,7 +39,8 @@ One module per concern, in `src/`:
 | `shell`, `shim` | Shell functions per seat, and the optional `claude` command that runs `seat run auto` |
 | `term`, `hybrid`, `skills`, `home` | The desktop app and terminal side by side, the installed skills, home repos |
 | `share`, `sync` | Copying setup between seats, and settings snapshots |
-| `tui` | `seat tui` |
+| `view` | The Seat view and the Project view: everything about a seat or a project folder in one value, for `seat show`, `seat projects` and the TUI |
+| `tui` | `seat tui`: renders the views, and drives a preset draft in its editor |
 
 ## Determinism
 

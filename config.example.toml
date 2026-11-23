@@ -45,7 +45,8 @@ track = []
 preset_apply = "session"
 
 # Use-case presets: usage profiles combined in order, then settings on top. Built-in: explore, build, review,
-# quick (`seat preset list`). A name here replaces the built-in one.
+# quick (`seat preset list`). A name here replaces the built-in one. `seat preset new <name>` builds one step by step
+# and only writes valid settings; `seat settings check <name>` checks one written by hand.
 # [preset.ops]
 # description = "Infrastructure work: careful, asks before every edit"
 # profiles = ["balanced"]

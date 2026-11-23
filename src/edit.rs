@@ -234,6 +234,41 @@ impl ConfigFile {
     }
 
     /// Turn a preset on or off. A built-in one gets its own table (a copy of it), since a table replaces it.
+    /// Write a preset's description, profiles and settings (`settings` as an inline-table value is spread into a
+    /// `[preset.<name>.settings]` table). `enabled` and anything else in the table stay as they are.
+    pub fn set_preset(
+        &mut self,
+        name: &str,
+        description: &str,
+        profiles: &[String],
+        settings: &toml_edit::Value,
+    ) -> Result<()> {
+        let t = self.table_at(&["preset", name])?;
+        if description.is_empty() {
+            t.remove("description");
+        } else {
+            t["description"] = value(description);
+        }
+        if profiles.is_empty() {
+            t.remove("profiles");
+        } else {
+            t["profiles"] = value(profiles.iter().collect::<toml_edit::Array>());
+        }
+        match settings.as_inline_table().filter(|o| !o.is_empty()) {
+            Some(o) => {
+                let mut st = Table::new();
+                for (k, v) in o.iter() {
+                    st[k] = Item::Value(v.clone());
+                }
+                t.insert("settings", Item::Table(st));
+            }
+            None => {
+                t.remove("settings");
+            }
+        }
+        Ok(())
+    }
+
     pub fn set_preset_enabled(&mut self, cfg: &Config, name: &str, on: bool) -> Result<()> {
         let p =
             crate::preset::get(cfg, name).with_context(|| format!("unknown preset '{name}'"))?;

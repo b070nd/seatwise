@@ -1350,6 +1350,138 @@ fn the_settings_catalog_checks_presets_where_they_are_applied() {
 }
 
 #[test]
+fn presets_are_built_one_valid_choice_at_a_time() {
+    let e = setup_with("");
+    let run = |args: &[&str]| e.seat("", args).output().unwrap();
+
+    ok(&run(&[
+        "preset",
+        "new",
+        "fast",
+        "--from",
+        "build",
+        "--description",
+        "build, faster",
+    ]));
+    let t = ok(&run(&[
+        "preset",
+        "set",
+        "fast",
+        "CLAUDE_CODE_EXPERIMENTAL_CODE_MODE",
+        "1",
+    ]));
+    assert!(t.contains("note:") && t.contains("experimental"), "{t}");
+    ok(&run(&["preset", "set", "fast", "effortLevel", "high"]));
+
+    // Refused: a bad value, a typo, and a documented clash. Nothing is written.
+    let before = read(&e.config);
+    for (args, why) in [
+        (
+            vec!["preset", "set", "fast", "effortLevel", "hihg"],
+            "not valid",
+        ),
+        (
+            vec!["preset", "set", "fast", "efortLevel", "high"],
+            "did you mean effortLevel",
+        ),
+        (
+            vec!["preset", "set", "fast", "CLAUDE_CODE_EFFORT_LEVEL", "low"],
+            "overrides effortLevel",
+        ),
+    ] {
+        let out = run(&args);
+        assert!(!out.status.success(), "{args:?}");
+        assert!(text(&out).contains(why), "{args:?}: {}", text(&out));
+    }
+    assert_eq!(read(&e.config), before);
+
+    let cfg = read(&e.config);
+    assert!(cfg.contains("[preset.fast.settings]"), "{cfg}");
+    assert!(
+        cfg.contains("CLAUDE_CODE_EXPERIMENTAL_CODE_MODE = \"1\""),
+        "{cfg}"
+    );
+    let t = ok(&run(&["preset", "options", "fast", "effort"]));
+    assert!(
+        t.contains("effortLevel") && t.contains("[now \"high\"]"),
+        "{t}"
+    );
+
+    // The wizard, driven through stdin: add a description and remove a setting, then write.
+    let mut child = e
+        .seat("", &["preset", "edit", "fast"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    use std::io::Write as _;
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"r\neffortLevel\nd\nbuild with code mode\nw\n")
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    let t = text(&out);
+    assert!(out.status.success(), "{t}");
+    assert!(t.contains("Only settings Claude Code honors"), "{t}");
+    let cfg = read(&e.config);
+    assert!(
+        cfg.contains("build with code mode") && !cfg.contains("effortLevel"),
+        "{cfg}"
+    );
+
+    // A project preset can't take what project files ignore.
+    ok(&run(&["preset", "new", "plain"]));
+    let mut cfg = read(&e.config);
+    cfg += "\n[[group]]\nname = \"g\"\npaths = [\"~/proj-a\"]\npreset = \"plain\"\napply = \"project\"\n";
+    fs::write(&e.config, cfg).unwrap();
+    let out = run(&[
+        "preset",
+        "set",
+        "plain",
+        "CLAUDE_CODE_EXPERIMENTAL_CODE_MODE",
+        "1",
+    ]);
+    assert!(text(&out).contains("ignores"), "{}", text(&out));
+    let t = text(&run(&["doctor"]));
+    assert!(
+        !t.contains("preset 'fast'") && !t.contains("preset 'plain'"),
+        "{t}"
+    );
+}
+
+#[test]
+fn a_seat_and_its_projects_in_one_view() {
+    let e = setup();
+    let t = ok(&e.seat("", &["show", "a"]).output().unwrap());
+    assert!(
+        t.contains("a · claude (alpha)") && t.contains("identity"),
+        "{t}"
+    );
+    assert!(t.contains("projects (") && t.contains("~/proj-a"), "{t}");
+    let t = ok(&e.seat("", &["show", "b"]).output().unwrap());
+    assert!(t.contains("[wrong account]"), "{t}");
+
+    let t = ok(&e.seat("", &["projects"]).output().unwrap());
+    assert!(
+        t.contains("PATH") && t.contains("SEAT") && t.contains("~/proj-b"),
+        "{t}"
+    );
+    let json: serde_json::Value =
+        serde_json::from_str(&ok(&e.seat("", &["projects", "--json"]).output().unwrap())).unwrap();
+    assert!(json.as_array().is_some_and(|a| !a.is_empty()), "{json}");
+
+    // An agent reading the JSON gets no identifiers.
+    let t = ok(&e
+        .seat("", &["show", "a", "--json"])
+        .env("CLAUDECODE", "1")
+        .output()
+        .unwrap());
+    assert!(!t.contains("org-a"), "{t}");
+}
+
+#[test]
 fn shell_init_replaces_aliases_of_the_same_name() {
     // Old setups often have `alias claude-work=...`: re-sourcing shell-init over them must still define functions.
     // Unix only: on Windows `bash` may be the WSL launcher, which can't read this test's Windows paths.

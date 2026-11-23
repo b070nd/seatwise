@@ -229,7 +229,7 @@ pub fn allowed_url(url: &str) -> bool {
 }
 
 /// `2026-11-22T14:05:00Z` → `2026-11-22 14:05 UTC`; anything else as is.
-fn short_time(t: &str) -> String {
+pub fn short_time(t: &str) -> String {
     if t.len() >= 16 && t.as_bytes()[10] == b'T' {
         let utc = if t.ends_with('Z') || t.contains("+00:00") {
             " UTC"
