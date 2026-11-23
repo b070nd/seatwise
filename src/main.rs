@@ -451,6 +451,11 @@ fn main() -> ExitCode {
         println!("KEY={}", if key { "set" } else { "none" });
         println!("ARGS={}", argv[1..].join(" "));
         // `claude plugin install <id>` records the plugin the way Claude Code does.
+        if argv.get(1..3).is_some_and(|a| a == ["plugin", "uninstall"]) {
+            let file =
+                PathBuf::from(var("CLAUDE_CONFIG_DIR")).join("plugins/installed_plugins.json");
+            let _ = std::fs::write(file, "{\"plugins\": {}}");
+        }
         if argv.get(1..3).is_some_and(|a| a == ["plugin", "install"]) {
             let dir = PathBuf::from(var("CLAUDE_CONFIG_DIR")).join("plugins");
             let _ = std::fs::create_dir_all(&dir);
@@ -904,7 +909,7 @@ fn run(cmd: Cmd) -> Result<i32> {
         Cmd::Skills(SkillsCmd::Show { name }) => {
             let name = name
                 .trim_start_matches('/')
-                .trim_start_matches("b070nd:")
+                .trim_start_matches("seatwise:")
                 .trim_start_matches("seat-");
             let (n, text) = seatwise::skills::SKILLS
                 .iter()

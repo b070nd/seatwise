@@ -31,7 +31,7 @@ pub enum Fix {
     UnlinkMissing,
     /// Give the seat the desktop app's default data folder (`[seat.desktop] user_data_dir = "default"`).
     DesktopDefaultFolder(String),
-    /// Bring the seat's seatwise skills (the `b070nd` plugin on Claude seats) up to date.
+    /// Bring the seat's seatwise skills (the `seatwise` plugin on Claude seats) up to date.
     Skills(String),
 }
 

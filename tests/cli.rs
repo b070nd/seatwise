@@ -1007,13 +1007,16 @@ fn skills_install_into_the_seat_with_the_binary_path() {
     let out = e.seat("", &["skills", "install", "a"]).output().unwrap();
     assert!(out.status.success(), "{}", text(&out));
     let out = text(&out);
-    assert!(out.contains("/b070nd:hybrid"), "{out}");
+    assert!(out.contains("/seatwise:hybrid"), "{out}");
     let plugin = e.home.join(".seat-a/seatwise-plugins");
-    let skill = read(&plugin.join("plugins/b070nd/skills/terminal/SKILL.md"));
+    let skill = read(&plugin.join("plugins/seatwise/skills/terminal/SKILL.md"));
     assert!(skill.starts_with("---\nname: terminal"), "{skill}");
     assert!(plugin.join(".claude-plugin/marketplace.json").is_file());
     let settings = read(&e.home.join(".seat-a/settings.json"));
-    assert!(settings.contains("\"b070nd@seatwise\": true"), "{settings}");
+    assert!(
+        settings.contains("\"seatwise@seatwise\": true"),
+        "{settings}"
+    );
     // Registered through `claude plugin`, in the seat's own folder.
     assert!(
         e.home
@@ -1029,7 +1032,7 @@ fn skills_install_into_the_seat_with_the_binary_path() {
         "only the seat asked for"
     );
     let t = text(
-        &e.seat("", &["skills", "show", "/b070nd:home"])
+        &e.seat("", &["skills", "show", "/seatwise:home"])
             .output()
             .unwrap(),
     );
@@ -1874,7 +1877,7 @@ fn hybrid_checks_then_sets_up_the_project_and_the_terminal() {
     assert!(t.contains("light"), "{t}");
     assert!(
         e.home
-            .join(".seat-a/seatwise-plugins/plugins/b070nd/skills/hybrid/SKILL.md")
+            .join(".seat-a/seatwise-plugins/plugins/seatwise/skills/hybrid/SKILL.md")
             .is_file()
     );
     let t = ok(&e

@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- The skills' namespace is now `seatwise`: `/seatwise:hybrid`, `/seatwise:terminal`, `/seatwise:status` and
+  `/seatwise:home` (0.4.0 called the plugin `b070nd`). `seat skills install` uninstalls, disables and deletes the old
+  plugin; `seat doctor` points it out.
+
 ## [0.4.0] - 2026-11-23
 
 ### Changed

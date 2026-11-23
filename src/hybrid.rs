@@ -7,7 +7,7 @@
 //!
 //! [`plan`] works all of that out without changing anything: each step is ok, a change it will make, or an open
 //! choice with the options and the flag that picks each one. `seat hybrid --check --json` hands the plan to the
-//! `/b070nd:hybrid` skill, which asks the user only about the open choices. [`carry_out`] makes the changes.
+//! `/seatwise:hybrid` skill, which asks the user only about the open choices. [`carry_out`] makes the changes.
 
 use crate::catalog::{self, Level, Target};
 use crate::config::{Agent, Config, Owner, Seat};
@@ -519,6 +519,9 @@ pub fn run(exe: &Path, opts: &Options) -> Result<Vec<String>> {
 /// What to add after "installed in <dir>": registration and removed old skills.
 pub fn install_note(done: &skills::Installed) -> String {
     let mut out = String::new();
+    if !done.retired.is_empty() {
+        out += &format!("; removed the old plugin {}", done.retired.join(", "));
+    }
     if !done.removed.is_empty() {
         out += &format!("; removed {} old loose skill(s)", done.removed.len());
     }

@@ -1,8 +1,8 @@
 //! The seatwise skillset: skills that let a session (in the desktop app or the CLI) set up the command line next to
 //! it, open a terminal for the project, report the seat's status and usage, and work from the seat's home repo.
 //!
-//! Claude Code seats get them as the `b070nd` plugin, so they are invoked as `/b070nd:hybrid`, `/b070nd:terminal`,
-//! `/b070nd:status` and `/b070nd:home`. The plugin lives in a small marketplace inside the seat's config folder
+//! Claude Code seats get them as the `seatwise` plugin, so they are invoked as `/seatwise:hybrid`, `/seatwise:terminal`,
+//! `/seatwise:status` and `/seatwise:home`. The plugin lives in a small marketplace inside the seat's config folder
 //! (`seatwise-plugins/`), is listed in the seat's settings.json (`extraKnownMarketplaces`, `enabledPlugins`) and
 //! registered with Claude Code's own `claude plugin` commands. Claude Code reads it in place, so a reinstall takes
 //! effect at the next session (or `/reload-plugins`). Codex has no plugins: its seats get loose `seat-<name>` skills.
@@ -16,10 +16,12 @@ use anyhow::{Context, Result};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
-/// The plugin, and so the namespace of its skills: `/b070nd:<skill>`.
-pub const PLUGIN: &str = "b070nd";
+/// The plugin, and so the namespace of its skills: `/seatwise:<skill>`.
+pub const PLUGIN: &str = "seatwise";
 /// The marketplace seatwise writes into each Claude seat.
 pub const MARKETPLACE: &str = "seatwise";
+/// Plugins earlier versions shipped the skills as (0.4.0: `b070nd`); [`install`] removes them.
+const RETIRED: [&str; 1] = ["b070nd"];
 
 pub const SKILLS: [(&str, &str); 4] = [
     ("hybrid", include_str!("../skills/hybrid/SKILL.md")),
@@ -28,12 +30,12 @@ pub const SKILLS: [(&str, &str); 4] = [
     ("home", include_str!("../skills/home/SKILL.md")),
 ];
 
-/// `b070nd@seatwise`: how Claude Code names the installed plugin.
+/// `seatwise@seatwise`: how Claude Code names the installed plugin.
 pub fn plugin_id() -> String {
     format!("{PLUGIN}@{MARKETPLACE}")
 }
 
-/// What a user types: `/b070nd:hybrid` on a Claude seat, `$seat-hybrid` on a Codex one.
+/// What a user types: `/seatwise:hybrid` on a Claude seat, `$seat-hybrid` on a Codex one.
 pub fn invocation(agent: Agent, name: &str) -> String {
     match agent {
         Agent::Claude => format!("/{PLUGIN}:{name}"),
@@ -102,7 +104,7 @@ fn files(seat: &Seat, exe: &Path) -> Vec<(PathBuf, String)> {
         let plugin = json!({
             "name": PLUGIN,
             "version": version,
-            "description": "seatwise skills: /b070nd:hybrid, /b070nd:terminal, /b070nd:status, /b070nd:home",
+            "description": "seatwise skills: /seatwise:hybrid, /seatwise:terminal, /seatwise:status, /seatwise:home",
             "homepage": "https://github.com/b070nd/seatwise",
             "license": "MIT",
         });
@@ -136,11 +138,17 @@ pub struct State {
     pub registered: bool,
     /// Loose skills from seatwise 0.3 and earlier, still in a Claude seat's `skills/` folder.
     pub legacy: Vec<PathBuf>,
+    /// Plugins of earlier versions still enabled, installed or on disk (by id).
+    pub retired: Vec<String>,
 }
 
 impl State {
     pub fn current(&self) -> bool {
-        self.outdated.is_empty() && self.listed && self.registered && self.legacy.is_empty()
+        self.outdated.is_empty()
+            && self.listed
+            && self.registered
+            && self.legacy.is_empty()
+            && self.retired.is_empty()
     }
 
     /// One line for `seat hybrid` and `seat doctor`.
@@ -157,6 +165,9 @@ impl State {
         }
         if self.listed && !self.registered {
             parts.push("plugin not registered with Claude Code yet".into());
+        }
+        if !self.retired.is_empty() {
+            parts.push(format!("old plugin to remove: {}", self.retired.join(", ")));
         }
         if !self.legacy.is_empty() {
             parts.push(format!(
@@ -194,21 +205,19 @@ pub fn state(seat: &Seat, exe: &Path) -> State {
             listed: true,
             registered: true,
             legacy: Vec::new(),
+            retired: Vec::new(),
         },
         Agent::Claude => {
             let settings = read_json(&seat.hooks_file());
             State {
                 outdated,
                 listed: listed(&settings, seat),
-                registered: read_json(
-                    &seat
-                        .config_dir()
-                        .join("plugins")
-                        .join("installed_plugins.json"),
-                )
-                .to_string()
-                .contains(&format!("\"{}\"", plugin_id())),
+                registered: installed_ids(seat).contains(&format!("\"{}\"", plugin_id())),
                 legacy: legacy(seat),
+                retired: retired(seat, &settings)
+                    .into_iter()
+                    .map(|(id, _)| id)
+                    .collect(),
             }
         }
     }
@@ -219,6 +228,30 @@ fn read_json(path: &Path) -> Value {
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or(Value::Null)
+}
+
+fn installed_ids(seat: &Seat) -> String {
+    read_json(
+        &seat
+            .config_dir()
+            .join("plugins")
+            .join("installed_plugins.json"),
+    )
+    .to_string()
+}
+
+/// Retired plugins this seat still has: enabled in settings.json, installed, or on disk.
+fn retired(seat: &Seat, settings: &Value) -> Vec<(String, &'static str)> {
+    let installed = installed_ids(seat);
+    RETIRED
+        .into_iter()
+        .map(|old| (format!("{old}@{MARKETPLACE}"), old))
+        .filter(|(id, old)| {
+            !settings["enabledPlugins"][id.as_str()].is_null()
+                || installed.contains(&format!("\"{id}\""))
+                || marketplace_dir(seat).join("plugins").join(old).exists()
+        })
+        .collect()
 }
 
 fn listed(settings: &Value, seat: &Seat) -> bool {
@@ -262,21 +295,23 @@ pub struct Installed {
     pub removed: Vec<PathBuf>,
     /// Claude: `claude plugin` registered the plugin now (false: it registers at the next session start).
     pub registered: bool,
-    /// Why registering failed, if it did.
+    /// Plugins of earlier versions removed (by id).
+    pub retired: Vec<String>,
+    /// Why registering (or removing an old plugin) failed, if it did.
     pub note: Option<String>,
 }
 
 /// Write the skills (and, for Claude, the plugin, its marketplace and the settings that enable it), remove old loose
 /// skills, and register the plugin with Claude Code.
 pub fn install(cfg: &Config, seat: &Seat, exe: &Path) -> Result<Installed> {
-    install_with(cfg, seat, exe, register)
+    install_with(cfg, seat, exe, claude)
 }
 
 fn install_with(
     cfg: &Config,
     seat: &Seat,
     exe: &Path,
-    register: impl Fn(&Seat) -> Result<()>,
+    claude: impl Fn(&Seat, &[String]) -> Result<()>,
 ) -> Result<Installed> {
     for (path, text) in files(seat, exe) {
         std::fs::create_dir_all(path.parent().expect("has parent"))?;
@@ -300,7 +335,30 @@ fn install_with(
             .with_context(|| format!("{} is not valid JSON; fix it first", path.display()))?,
         Err(_) => json!({}),
     };
+    let mut changed = false;
+    let mut notes: Vec<String> = Vec::new();
+    // Plugins of earlier versions: uninstall, disable, delete.
+    let installed = installed_ids(seat);
+    for (id, old) in retired(seat, &settings) {
+        if installed.contains(&format!("\"{id}\""))
+            && let Err(e) = claude(seat, &["plugin".into(), "uninstall".into(), id.clone()])
+        {
+            notes.push(format!("{e:#}"));
+        }
+        if let Some(enabled) = settings
+            .get_mut("enabledPlugins")
+            .and_then(Value::as_object_mut)
+        {
+            changed |= enabled.remove(&id).is_some();
+        }
+        let dir = marketplace_dir(seat).join("plugins").join(old);
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).with_context(|| format!("removing {}", dir.display()))?;
+        }
+        done.retired.push(id);
+    }
     if !listed(&settings, seat) {
+        changed = true;
         let obj = settings
             .as_object_mut()
             .with_context(|| format!("{} is not a JSON object", path.display()))?;
@@ -318,24 +376,47 @@ fn install_with(
             .as_object_mut()
             .context("enabledPlugins is not an object")?
             .insert(plugin_id(), json!(true));
+    }
+    if changed {
         std::fs::write(&path, pretty(&settings))
             .with_context(|| format!("writing {}", path.display()))?;
         crate::sync::accept(seat, &cfg.track)?; // our own change is not drift
     }
     if !state(seat, exe).registered {
-        match register(seat) {
+        match register(seat, &claude) {
             Ok(()) => done.registered = state(seat, exe).registered,
             Err(e) => {
                 done.registered = false;
-                done.note = Some(format!("{e:#}"));
+                notes.push(format!("{e:#}"));
             }
         }
+    }
+    if !notes.is_empty() {
+        done.note = Some(notes.join("; "));
     }
     Ok(done)
 }
 
+/// Run `claude <args>` in the seat's own config folder.
+fn claude(seat: &Seat, args: &[String]) -> Result<()> {
+    let out = crate::launch::seat_command(seat)?
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .context("running claude")?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        anyhow::bail!(
+            "`claude {}` failed: {}",
+            args.iter().take(2).cloned().collect::<Vec<_>>().join(" "),
+            err.lines().last().unwrap_or("").trim()
+        );
+    }
+    Ok(())
+}
+
 /// `claude plugin marketplace add` + `claude plugin install`, in the seat's own config folder.
-fn register(seat: &Seat) -> Result<()> {
+fn register(seat: &Seat, claude: impl Fn(&Seat, &[String]) -> Result<()>) -> Result<()> {
     let dir = marketplace_dir(seat);
     let steps: [Vec<String>; 2] = [
         vec![
@@ -353,19 +434,7 @@ fn register(seat: &Seat) -> Result<()> {
         ],
     ];
     for args in steps {
-        let out = crate::launch::seat_command(seat)?
-            .args(&args)
-            .stdin(std::process::Stdio::null())
-            .output()
-            .context("running claude")?;
-        if !out.status.success() {
-            let err = String::from_utf8_lossy(&out.stderr);
-            anyhow::bail!(
-                "`claude {}` failed: {}",
-                args[..2].join(" "),
-                err.lines().last().unwrap_or("").trim()
-            );
-        }
+        claude(seat, &args)?;
     }
     Ok(())
 }
@@ -427,7 +496,7 @@ mod tests {
 
         // Registering fails (no claude here); the settings still enable it for the next start.
         let cfg: Config = toml::from_str("").unwrap();
-        let done = install_with(&cfg, &s, exe, |_| anyhow::bail!("no claude")).unwrap();
+        let done = install_with(&cfg, &s, exe, |_, _| anyhow::bail!("no claude")).unwrap();
         assert_eq!(done.removed, vec![old.clone()]);
         assert!(!done.registered && done.note.is_some());
         assert!(!old.exists() && mine.join("notes.md").exists());
@@ -442,10 +511,10 @@ mod tests {
             serde_json::from_str(&std::fs::read_to_string(t.path().join("settings.json")).unwrap())
                 .unwrap();
         assert_eq!(settings["model"], "opus");
-        assert_eq!(settings["enabledPlugins"]["b070nd@seatwise"], true);
+        assert_eq!(settings["enabledPlugins"]["seatwise@seatwise"], true);
         let skill = t
             .path()
-            .join("seatwise-plugins/plugins/b070nd/skills/hybrid/SKILL.md");
+            .join("seatwise-plugins/plugins/seatwise/skills/hybrid/SKILL.md");
         assert!(
             std::fs::read_to_string(skill)
                 .unwrap()
@@ -456,11 +525,63 @@ mod tests {
         std::fs::create_dir_all(t.path().join("plugins")).unwrap();
         std::fs::write(
             t.path().join("plugins/installed_plugins.json"),
-            "{\"plugins\": {\"b070nd@seatwise\": [{\"scope\": \"user\"}]}}",
+            "{\"plugins\": {\"seatwise@seatwise\": [{\"scope\": \"user\"}]}}",
         )
         .unwrap();
         assert!(state(&s, exe).current());
-        assert_eq!(invocation(Agent::Claude, "hybrid"), "/b070nd:hybrid");
+    }
+
+    #[test]
+    fn the_0_4_0_b070nd_plugin_is_uninstalled_and_disabled() {
+        let t = tempfile::tempdir().unwrap();
+        let s = seat(t.path(), "claude");
+        let exe = Path::new("/x/seat");
+        let old = t
+            .path()
+            .join("seatwise-plugins/plugins/b070nd/skills/hybrid");
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::write(
+            t.path().join("settings.json"),
+            "{\"enabledPlugins\": {\"b070nd@seatwise\": true, \"other@x\": true}}",
+        )
+        .unwrap();
+        std::fs::create_dir_all(t.path().join("plugins")).unwrap();
+        let installed = t.path().join("plugins/installed_plugins.json");
+        std::fs::write(&installed, "{\"plugins\": {\"b070nd@seatwise\": []}}").unwrap();
+        assert_eq!(state(&s, exe).retired, ["b070nd@seatwise"]);
+
+        // A stand-in for `claude plugin ...` that records what it is asked, the way Claude Code does.
+        let calls = std::cell::RefCell::new(Vec::<String>::new());
+        let cfg: Config = toml::from_str("").unwrap();
+        let done = install_with(&cfg, &s, exe, |_, args| {
+            calls.borrow_mut().push(args.join(" "));
+            match args[1].as_str() {
+                "uninstall" => std::fs::write(&installed, "{\"plugins\": {}}")?,
+                "install" => {
+                    std::fs::write(&installed, "{\"plugins\": {\"seatwise@seatwise\": []}}")?
+                }
+                _ => {}
+            }
+            Ok(())
+        })
+        .unwrap();
+        let calls = calls.into_inner();
+        assert_eq!(calls[0], "plugin uninstall b070nd@seatwise", "{calls:?}");
+        assert!(
+            calls
+                .last()
+                .unwrap()
+                .starts_with("plugin install seatwise@seatwise")
+        );
+        assert_eq!(done.retired, ["b070nd@seatwise"]);
+        assert!(!t.path().join("seatwise-plugins/plugins/b070nd").exists());
+        let settings = std::fs::read_to_string(t.path().join("settings.json")).unwrap();
+        assert!(
+            !settings.contains("b070nd") && settings.contains("other@x"),
+            "{settings}"
+        );
+        assert!(state(&s, exe).current(), "{:?}", state(&s, exe));
+        assert_eq!(invocation(Agent::Claude, "hybrid"), "/seatwise:hybrid");
     }
 
     #[test]
@@ -469,7 +590,7 @@ mod tests {
         let s = seat(t.path(), "codex");
         assert!(!state(&s, Path::new("/x/seat")).current());
         let cfg: Config = toml::from_str("").unwrap();
-        let done = install_with(&cfg, &s, Path::new("/x/seat"), |_| unreachable!()).unwrap();
+        let done = install_with(&cfg, &s, Path::new("/x/seat"), |_, _| unreachable!()).unwrap();
         assert!(done.dir.join("seat-terminal/SKILL.md").exists());
         assert!(state(&s, Path::new("/x/seat")).current());
     }

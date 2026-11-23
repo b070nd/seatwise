@@ -129,7 +129,7 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat desktop [seat]` | Start the desktop app on a seat (macOS), unless it already runs; without a seat, the running instances |
 | `seat term [--seat s] [--with p] [--dir d] [--print]` | New terminal window running the seat in a project; from inside a session it takes that session's seat and project |
 | `seat hybrid [--check] [--json] [--link] [--preset p] [--with p]` | Set up the command line for this project next to the desktop app, then open a terminal there; `--json` prints the plan and its open choices |
-| `seat skills install [seat]` / `seat skills show <name>` | Install the seatwise skills into seats: the `b070nd` plugin on Claude seats (`/b070nd:hybrid`, `/b070nd:terminal`, `/b070nd:status`, `/b070nd:home`) |
+| `seat skills install [seat]` / `seat skills show <name>` | Install the seatwise skills into seats: the `seatwise` plugin on Claude seats (`/seatwise:hybrid`, `/seatwise:terminal`, `/seatwise:status`, `/seatwise:home`) |
 | `seat home init <seat> [path]` / `seat home sync` | Create or adopt a seat's home repo; refresh its pointers. `seat run --home <seat>` starts there |
 | `seat tui` | Seat and project cards, a preset editor, and switches for agents, groups and general options; `w` writes, keeping comments |
 | `seat enable/disable <target>` | A seat, `agent:claude\|codex`, `preset:<name>`, `group:<name>` or `sentinel` |
@@ -250,10 +250,10 @@ Scheduler task) and shows findings as notifications; `--dry-run` prints what it 
 ## Desktop app, terminal and home repos
 
 In the desktop app, chat as usual; when a task needs the CLI (a long-running command, an experimental feature, your own
-shell), ask for a terminal. `/b070nd:terminal` runs `seat term`, which opens one on the same seat and project:
+shell), ask for a terminal. `/seatwise:terminal` runs `seat term`, which opens one on the same seat and project:
 
 ```sh
-seat skills install            # every seat: /b070nd:hybrid, /b070nd:terminal, /b070nd:status, /b070nd:home
+seat skills install            # every seat: /seatwise:hybrid, /seatwise:terminal, /seatwise:status, /seatwise:home
 seat hybrid --check            # what is set up for this project, changing nothing
 seat hybrid --link --preset build --with experimental
 seat term --with experimental  # just the terminal, from any shell
@@ -265,12 +265,12 @@ use-case preset (`--preset`), and opens a terminal with session-only settings (`
 belongs to another seat. The session-only settings are checked against the settings catalog first: a profile that
 gives settings Claude Code would not take in a session is refused before anything changes.
 
-In the desktop app, run `/b070nd:hybrid` or ask for "hybrid mode" or "the CLI for this project". The skill reads the
+In the desktop app, run `/seatwise:hybrid` or ask for "hybrid mode" or "the CLI for this project". The skill reads the
 plan (`seat hybrid --json`: each step `ok`, `change` or `open`, and the open choices with the flag for each option)
 and asks you only about the open choices: whether the folder should belong to the seat, a preset, and session-only
 settings such as `--with experimental` (Code Mode), offering only profiles that are valid for a session.
 
-On Claude seats the skills come as a plugin named `b070nd`, so they share one namespace and stay out of the way of
+On Claude seats the skills come as a plugin named `seatwise`, so they share one namespace and stay out of the way of
 your own skills. It lives in a small marketplace in the seat's config folder (`seatwise-plugins/`), is enabled in the
 seat's settings.json (`extraKnownMarketplaces` and `enabledPlugins`) and registered with `claude plugin install` in
 that seat. Claude Code reads it in place: after an upgrade, `seat skills install` updates it for the next session, or
@@ -390,4 +390,4 @@ Org UUIDs, org names, emails, account ids and login tokens are read only from yo
 
 ## License
 
-MIT © 2026 b070nd. See [LICENSE](LICENSE).
+MIT © 2026 seatwise. See [LICENSE](LICENSE).
