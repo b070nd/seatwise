@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-23
+
 ### Changed
 - The seatwise skills are now the `b070nd` plugin on Claude seats: `/b070nd:hybrid`, `/b070nd:terminal`,
   `/b070nd:status` and `/b070nd:home`. `seat skills install` writes it into a marketplace in the seat's config folder,
@@ -125,7 +127,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/b070nd/seatwise/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/b070nd/seatwise/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/b070nd/seatwise/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/b070nd/seatwise/releases/tag/v0.1.0
