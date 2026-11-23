@@ -87,7 +87,7 @@ impl Plan {
 }
 
 /// Built-in profiles, lightest first: (name, what it is).
-pub const BUILTIN: [(&str, &str); 3] = [
+pub const BUILTIN: [(&str, &str); 4] = [
     (
         "light",
         "Sonnet, Haiku subagents, low effort, no extended thinking: makes a small plan last",
@@ -100,9 +100,17 @@ pub const BUILTIN: [(&str, &str); 3] = [
         "heavy",
         "Opus, Sonnet subagents, high effort, thinking on: for plans with the most headroom",
     ),
+    (
+        "experimental",
+        "Claude Code's newest experimental features on top of your settings: Code Mode (tool calls batched in a script)",
+    ),
 ];
 
 pub fn builtin(name: &str) -> Option<Value> {
+    if name == "experimental" {
+        // Only the features: it goes on top of a seat's own profile (`--with experimental`).
+        return Some(json!({ "env": { "CLAUDE_CODE_EXPERIMENTAL_CODE_MODE": "1" } }));
+    }
     let (model, sub, effort, thinking) = match name {
         "light" => ("sonnet", "haiku", "low", false),
         "balanced" => ("opusplan", "sonnet", "medium", true),

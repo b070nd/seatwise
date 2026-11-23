@@ -213,6 +213,9 @@ enum Cmd {
     /// Use-case presets (usage profiles combined with settings) for folder groups
     #[command(subcommand)]
     Preset(PresetCmd),
+    /// Every Claude Code setting and environment variable: find them, read what they do, check presets
+    #[command(subcommand)]
+    Settings(SettingsCmd),
     /// Folder groups: folders that share a preset
     #[command(subcommand)]
     Group(GroupCmd),
@@ -220,6 +223,36 @@ enum Cmd {
     Sentinel(SentinelArgs),
     /// Full-screen settings: seats, agents, presets, folder groups and the sentinel
     Tui,
+}
+
+#[derive(Subcommand)]
+enum SettingsCmd {
+    /// Settings and environment variables whose name or meaning contains every word
+    Search {
+        query: Vec<String>,
+        /// Only experimental ones
+        #[arg(long)]
+        experimental: bool,
+        /// Only environment variables
+        #[arg(long)]
+        env: bool,
+        /// Include deprecated and removed ones
+        #[arg(long)]
+        all: bool,
+    },
+    /// What a setting or environment variable does, where Claude Code honors it, and how to set it in a preset
+    Show { key: String },
+    /// Check a preset's or profile's settings (or a settings JSON file) against the catalog
+    Check {
+        /// A preset or profile name
+        name: Option<String>,
+        /// A settings JSON file instead
+        #[arg(long, conflicts_with = "name")]
+        file: Option<PathBuf>,
+        /// Where the settings are applied: session (default for presets), local (apply = "project"), user
+        #[arg(long)]
+        target: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -338,6 +371,7 @@ fn main() -> ExitCode {
         println!("BROWSER={}", var("BROWSER"));
         println!("PRESET={}", var("SEATWISE_PRESET"));
         println!("BASE={}", var("ANTHROPIC_BASE_URL"));
+        println!("DISKWARN={}", var("CLAUDE_CODE_WARN_DISK_FREE_GIB"));
         let key = std::env::var_os("ANTHROPIC_API_KEY").is_some();
         println!("KEY={}", if key { "set" } else { "none" });
         println!("ARGS={}", argv[1..].join(" "));
@@ -1258,6 +1292,105 @@ fn run(cmd: Cmd) -> Result<i32> {
             }
             print!("{}", status::table(&rows));
             Ok(0)
+        }
+        Cmd::Settings(SettingsCmd::Search {
+            query,
+            experimental,
+            env,
+            all,
+        }) => {
+            use seatwise::catalog::{Filter, Kind};
+            let hits = seatwise::catalog::search(
+                &query.join(" "),
+                Filter {
+                    experimental,
+                    kind: env.then_some(Kind::Env),
+                    deprecated: all,
+                },
+            );
+            if hits.is_empty() {
+                println!("nothing matches; `seat settings search` lists everything");
+                return Ok(1);
+            }
+            let mut rows = vec![
+                ["KEY", "VALUE", "", "WHAT IT DOES"]
+                    .map(String::from)
+                    .to_vec(),
+            ];
+            for e in &hits {
+                let mark = match e.stability.as_str() {
+                    "experimental" => "exp",
+                    "deprecated" => "old",
+                    _ => "",
+                };
+                let mut value = e.type_label();
+                if value.chars().count() > 28 {
+                    value = value.chars().take(27).collect::<String>() + "…";
+                }
+                rows.push(vec![e.name.clone(), value, mark.into(), e.meaning.clone()]);
+            }
+            print!("{}", seatwise::status::table(&rows));
+            println!(
+                "\n{} of them. `seat settings show <key>` for details. Catalog checked {}.",
+                hits.len(),
+                seatwise::catalog::CHECKED
+            );
+            Ok(0)
+        }
+        Cmd::Settings(SettingsCmd::Show { key }) => {
+            let Some(e) = seatwise::catalog::lookup(&key) else {
+                let mut near = seatwise::catalog::near(&key);
+                near.extend(seatwise::catalog::search(&key, Default::default()));
+                near.dedup_by(|a, b| a.name == b.name);
+                eprintln!("seat: {key} is not in the settings catalog");
+                for e in near.iter().take(5) {
+                    eprintln!("  did you mean {}?", e.name);
+                }
+                return Ok(1);
+            };
+            print!("{}", seatwise::catalog::describe(e));
+            Ok(0)
+        }
+        Cmd::Settings(SettingsCmd::Check { name, file, target }) => {
+            use seatwise::catalog::{Level, Target};
+            let cfg = Config::load()?;
+            let target = match target.as_deref() {
+                None | Some("session") => Target::Session,
+                Some("local") | Some("project") => Target::Local,
+                Some("user") => Target::User,
+                Some(other) => anyhow::bail!("unknown target '{other}': session, local or user"),
+            };
+            let (what, settings) = match (name, file) {
+                (_, Some(f)) => (
+                    f.display().to_string(),
+                    serde_json::from_str(&std::fs::read_to_string(&f)?)
+                        .with_context(|| format!("{} is not JSON", f.display()))?,
+                ),
+                (Some(n), None) => match seatwise::preset::get(&cfg, &n) {
+                    Some(p) => (
+                        format!("preset '{n}'"),
+                        seatwise::preset::settings(&cfg, &p),
+                    ),
+                    None => (
+                        format!("profile '{n}'"),
+                        seatwise::plan::settings_of(&cfg, &n)
+                            .with_context(|| format!("no preset or profile named '{n}'"))?,
+                    ),
+                },
+                (None, None) => anyhow::bail!("name a preset or profile, or pass --file"),
+            };
+            let problems = seatwise::catalog::check(&settings, target);
+            if problems.is_empty() {
+                println!("{what}: no problems for {}", target.label());
+                return Ok(0);
+            }
+            println!("{what}, applied in {}:", target.label());
+            print!("{}", seatwise::catalog::report(&problems));
+            Ok(if problems.iter().any(|p| p.level == Level::Error) {
+                1
+            } else {
+                0
+            })
         }
         Cmd::Preset(PresetCmd::Show { name }) => {
             let cfg = Config::load()?;

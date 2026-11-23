@@ -130,6 +130,8 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat tui` | One screen for seats, agents, presets, folder groups and general options; `w` writes, keeping comments |
 | `seat enable/disable <target>` | A seat, `agent:claude\|codex`, `preset:<name>`, `group:<name>` or `sentinel` |
 | `seat preset list` / `seat preset show <name>` | Use-case presets and their resolved settings |
+| `seat settings search [words] [--experimental]` | Every Claude Code setting and environment variable, from the settings catalog |
+| `seat settings show <key>` / `seat settings check <preset>` | What a setting does and where Claude Code honors it; check a preset or profile |
 | `seat group add [folder]` / `list` / `remove` | Give folders a preset; asks for preset and apply mode on a terminal |
 | `seat explain [folder]` | What a session there runs with: group, preset, each settings layer, and which layer set each value |
 | `seat sentinel [--here]` / `install` / `rules` | Find settings worth changing; `install` schedules it every `sentinel.interval` |
@@ -175,6 +177,31 @@ Each group chooses how its preset arrives (`apply`, default `preset_apply`):
 `settings.json` can't change how your sessions run. `seat explain` prints the layers in order and, for every value,
 the layer that set it. Each start gets a fingerprint of what seatwise added (`review@3f9a1c02`); `seat ps` shows it, so
 two sessions with the same fingerprint run with the same settings from seatwise.
+
+### The settings catalog
+
+seatwise ships a catalog of every Claude Code setting and environment variable (from Claude Code's settings and
+env-var docs): its type, allowed values, where Claude Code honors it, and whether it's experimental. It also includes
+the combinations the docs warn about.
+
+```sh
+seat settings search --experimental    # what's new to try
+seat settings search thinking          # every setting about thinking
+seat settings show CLAUDE_CODE_EXPERIMENTAL_CODE_MODE
+seat settings check my-preset --target local
+```
+
+`seat doctor` and `seat explain` check presets and profiles against it. That catches values Claude Code doesn't
+accept (`effortLevel = "hihg"`), typos (`efortLevel`: did you mean `effortLevel`?), and settings Claude Code ignores
+where the preset lands. Code Mode, for example, works from `--settings` (a `session` preset or `--with`) but not from
+`.claude/settings.local.json` (an `apply = "project"` preset). seatwise exports variables Claude Code reads only from
+the launch environment itself, so they work in session presets too. Keys the catalog doesn't know get a warning, never
+an error, so a new Claude Code release doesn't break your config.
+
+The built-in `experimental` profile turns on Claude Code's newest experimental features for one session:
+`seat run <seat> --with experimental`, or `seat hybrid --with experimental` next to the desktop app. Today that's
+Code Mode: Claude writes a short script that batches tool calls, and each call still goes through your permission
+rules and seatwise's hooks.
 
 ## Sentinel
 

@@ -245,6 +245,7 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
         }
     }
     out.extend(unused_default_and_logins(cfg));
+    out.extend(settings_problems(cfg));
     for var in ["XDG_CONFIG_HOME", "XDG_DATA_HOME"] {
         if let Some(p) = std::env::var_os(var).map(PathBuf::from)
             && paths::session_scoped(&p)
@@ -298,6 +299,48 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
         }
     }
     out.sort_by_key(|f| f.level);
+    out
+}
+
+/// Preset and profile settings the Settings Catalog finds wrong: unknown keys, bad values, keys Claude Code ignores
+/// where the preset is applied. Experimental keys are fine here; `seat explain` mentions them.
+fn settings_problems(cfg: &Config) -> Vec<Finding> {
+    use crate::catalog::{Level as L, Target, check};
+    let mut out = Vec::new();
+    let mut push = |what: String, problems: Vec<crate::catalog::Problem>| {
+        for p in problems {
+            let level = match p.level {
+                L::Error => Level::Error,
+                L::Warn => Level::Warn,
+                L::Info => continue,
+            };
+            out.push(finding(level, format!("{what}: {}", p.message)));
+        }
+    };
+    for p in crate::preset::all(cfg)
+        .iter()
+        .filter(|p| p.enabled && !p.builtin)
+    {
+        let s = crate::preset::settings(cfg, p);
+        let mut problems = check(&s, Target::Session);
+        if cfg.groups.iter().any(|g| {
+            g.enabled
+                && g.preset == p.name
+                && g.apply.unwrap_or(cfg.preset_apply) == crate::config::Apply::Project
+        }) {
+            for q in check(&s, Target::Local) {
+                if !problems.contains(&q) {
+                    problems.push(q);
+                }
+            }
+        }
+        push(format!("preset '{}'", p.name), problems);
+    }
+    for name in cfg.profiles.keys() {
+        if let Some(s) = crate::plan::settings_of(cfg, name) {
+            push(format!("profile '{name}'"), check(&s, Target::Session));
+        }
+    }
     out
 }
 

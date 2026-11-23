@@ -1,0 +1,4355 @@
+# Claude Code settings and environment variables seatwise knows about.
+#
+# Sources: https://code.claude.com/docs/en/settings-reference and https://code.claude.com/docs/en/env-vars,
+# read 2026-11-23 (newest version gate seen: v2.1.330). `scopes` lists where Claude Code honors a value:
+# user (~/.claude/settings.json), project (.claude/settings.json), local (.claude/settings.local.json), managed,
+# session (--settings, which seatwise uses for session presets), shell (the launch environment), global
+# (~/.claude.json). Update this file when Claude Code adds or changes settings; `seat settings` reads it.
+
+[[setting]]
+name = "advisorModel"
+type = "enum"
+values = ["fable", "opus"]
+meaning = "model used for advisor tool; unset = off"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "agent"
+type = "string"
+meaning = "run main thread as named subagent"
+shape = "string"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "agentPushNotifEnabled"
+type = "bool"
+meaning = "allow Claude phone push notifications"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "allowAllClaudeAiMcps"
+type = "bool"
+meaning = "keep claude.ai connectors beside managed-mcp.json"
+scopes = ["managed"]
+
+[[setting]]
+name = "allowClaudeInChromeWithManagedMcp"
+type = "bool"
+meaning = "Chrome server runs beside managed-mcp.json; v2.1.282+"
+scopes = ["managed"]
+since = "2.1.282"
+
+[[setting]]
+name = "allowedChannelPlugins"
+type = "list"
+meaning = "channel plugin allowlist replacing default"
+shape = "array of {marketplace,plugin} or \"plugin@marketplace\""
+scopes = ["managed"]
+
+[[setting]]
+name = "allowedHttpHookUrls"
+type = "list"
+meaning = "limit URLs HTTP hooks may target"
+shape = "string[] (URL patterns, * wildcard)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "allowedMcpServers"
+type = "list"
+meaning = "MCP server allowlist for users"
+shape = "array of {serverName}|{serverCommand}|{serverUrl}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "allowedProviders"
+type = "list"
+meaning = "which API providers machine may use; v2.1.285+"
+shape = "string[] [anthropic, bedrock, vertex, foundry, anthropicAws, anthropicGoogleCloud, mantle, customEndpoint, gateway]"
+scopes = ["managed"]
+since = "2.1.285"
+
+[[setting]]
+name = "allowManagedHooksOnly"
+type = "bool"
+meaning = "run only managed/SDK/force-enabled plugin hooks"
+scopes = ["managed"]
+
+[[setting]]
+name = "allowManagedMcpServersOnly"
+type = "bool"
+meaning = "only managed allowedMcpServers apply"
+scopes = ["managed"]
+
+[[setting]]
+name = "allowManagedPermissionRulesOnly"
+type = "bool"
+meaning = "managed settings sole source of permission rules"
+scopes = ["managed"]
+
+[[setting]]
+name = "alwaysThinkingEnabled"
+type = "bool"
+meaning = "false turns extended thinking off"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "apiKeyHelper"
+type = "string"
+meaning = "command printing the API credential"
+shape = "string (shell command)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "appendPlugins"
+type = "list"
+meaning = "managed mods run after user mods"
+shape = "string[] \"plugin@marketplace\""
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "askUserQuestionTimeout"
+type = "enum"
+values = ["60s", "5m", "10m", "never"]
+meaning = "auto-continue unanswered questions"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "attribution"
+type = "object"
+meaning = "commit/PR attribution config; false needs v2.1.281+"
+shape = "object {commit?, pr?, sessionUrl?} or false"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.281"
+
+[[setting]]
+name = "attribution.commit"
+type = "string"
+meaning = "commit trailer text"
+shape = "string (\"\" hides)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "attribution.pr"
+type = "string"
+meaning = "PR description attribution text"
+shape = "string (\"\" hides)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "attribution.sessionUrl"
+type = "bool"
+meaning = "include claude.ai session link"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "autoCompactEnabled"
+type = "bool"
+meaning = "automatic compaction on/off"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "autoCompactWindow"
+type = "number"
+meaning = "context fill level that triggers compaction"
+shape = "number tokens (min 100000, capped at model window)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "autoContinueAtUsageLimit"
+type = "bool"
+meaning = "auto-continue after usage-limit reset; v2.1.234+"
+scopes = ["user", "managed", "session"]
+since = "2.1.234"
+
+[[setting]]
+name = "autoMemoryDirectory"
+type = "string"
+meaning = "auto memory storage location"
+shape = "string path (absolute or ~/)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "autoMemoryEnabled"
+type = "bool"
+meaning = "auto memory read/write on/off"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "autoMode"
+type = "object"
+meaning = "custom auto-mode classifier rules; include \"$defaults\" to extend"
+shape = "object {environment, allow, soft_deny, hard_deny: string[]} + classifyAllShell"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "autoMode.classifyAllShell"
+type = "bool"
+meaning = "send all shell commands to classifier; v2.1.193+"
+scopes = ["user", "managed", "session"]
+since = "2.1.193"
+
+[[setting]]
+name = "autoScrollEnabled"
+type = "bool"
+meaning = "follow new output in fullscreen"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "autoUpdatesChannel"
+type = "enum"
+values = ["latest", "stable"]
+meaning = "auto-update release channel"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "availableModels"
+type = "list"
+meaning = "restrict selectable models"
+shape = "string[] (aliases or model IDs)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "availableModelsMatch"
+type = "enum"
+values = ["prefix", "exact"]
+meaning = "exact version matching for model ID entries; v2.1.283+"
+scopes = ["managed"]
+since = "2.1.283"
+
+[[setting]]
+name = "awaySummaryEnabled"
+type = "bool"
+meaning = "session recap after return"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "awsAuthRefresh"
+type = "string"
+meaning = "refresh .aws credentials when STS check fails"
+shape = "string (command)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "awsCredentialExport"
+type = "string"
+meaning = "command printing AWS creds as JSON"
+shape = "string (command)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "axScreenReader"
+type = "bool"
+meaning = "screen-reader friendly output"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "bashEditDiffEnabled"
+type = "bool"
+meaning = "record files changed by Bash; v2.1.269+"
+scopes = ["user", "managed", "session"]
+since = "2.1.269"
+
+[[setting]]
+name = "bashOutputMaxChars"
+type = "number"
+meaning = "inline Bash output char limit; v2.1.261+"
+shape = "integer clamped 4000–128000 (default 30000)"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.261"
+
+[[setting]]
+name = "blockedMarketplaces"
+type = "list"
+meaning = "block marketplace sources"
+shape = "array of marketplace source objects"
+scopes = ["managed"]
+
+[[setting]]
+name = "browserExternalPageTools"
+type = "enum"
+values = ["disabled", "disable"]
+meaning = "stop Claude tools on external pages (Desktop)"
+scopes = ["managed"]
+
+[[setting]]
+name = "channelsEnabled"
+type = "bool"
+meaning = "allow channels for organization"
+scopes = ["managed"]
+
+[[setting]]
+name = "claudeMd"
+type = "string"
+meaning = "organization CLAUDE.md text injected as memory"
+shape = "string"
+scopes = ["managed"]
+
+[[setting]]
+name = "claudeMdExcludes"
+type = "list"
+meaning = "skip matching CLAUDE.md files"
+shape = "string[] (globs or absolute paths)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "cleanupPeriodDays"
+type = "number"
+meaning = "days before transcripts deleted"
+shape = "integer ≥1 (default 30)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "companyAnnouncements"
+type = "list"
+meaning = "startup announcements (one picked at random)"
+shape = "string[]"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "crossSessionInbound"
+type = "enum"
+values = ["accept", "hold", "refuse"]
+meaning = "handling of messages from other sessions"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "defaultShell"
+type = "enum"
+values = ["bash", "powershell"]
+meaning = "shell for ! prefix commands"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "deniedMcpServers"
+type = "list"
+meaning = "block matching MCP servers; wins over allowlist"
+shape = "array of {serverName}|{serverCommand}|{serverUrl}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "deniedModels"
+type = "list"
+meaning = "block models even if allowed; v2.1.283+"
+shape = "string[] (aliases or IDs)"
+scopes = ["managed"]
+since = "2.1.283"
+
+[[setting]]
+name = "desktopSessionCleanupPeriodDays"
+type = "number"
+meaning = "transcript age limit for Desktop/Cowork"
+shape = "integer ≥0 (0 = no limit); v2.1.248+"
+scopes = ["user", "managed", "session"]
+since = "2.1.248"
+
+[[setting]]
+name = "dialogExpiry"
+type = "enum"
+values = ["60s", "5m", "10m", "never"]
+meaning = "deadline for forwarded remote dialogs; v2.1.224+"
+scopes = ["user", "managed", "session"]
+since = "2.1.224"
+
+[[setting]]
+name = "disableAgentView"
+type = "bool"
+meaning = "turn off background agents and agent view"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "disableAllHooks"
+type = "bool"
+meaning = "turn off hooks, custom status line, file suggestion"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "disableArtifact"
+type = "bool"
+meaning = "DEPRECATED; use enableArtifact"
+scopes = ["user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[setting]]
+name = "disableAutoMode"
+type = "enum"
+values = ["disable"]
+meaning = "remove auto mode from mode cycle (also permissions.disableAutoMode)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "disableBrowserExternalNavigation"
+type = "bool"
+meaning = "block external browsing in Desktop Browser pane"
+scopes = ["managed"]
+
+[[setting]]
+name = "disableBundledSkills"
+type = "bool"
+meaning = "turn off bundled skills and workflows"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "disableClaudeAiConnectors"
+type = "bool"
+meaning = "turn off claude.ai connectors; true from any file wins"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "disableCommandPluginSources"
+type = "bool"
+meaning = "block command-sourced plugins and marketplace headersHelper; v2.1.229+"
+scopes = ["managed"]
+since = "2.1.229"
+
+[[setting]]
+name = "disableDeepLinkRegistration"
+type = "enum"
+values = ["disable"]
+meaning = "skip claude-cli:// handler registration"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "disableDesktopLocalSessions"
+type = "bool"
+meaning = "turn off on-device Desktop Code sessions"
+scopes = ["managed"]
+
+[[setting]]
+name = "disabledMcpjsonServers"
+type = "list"
+meaning = "reject named project .mcp.json servers"
+shape = "string[]"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "disableMobileSimulatorTools"
+type = "bool"
+meaning = "block Claude iOS Simulator tools (Desktop)"
+scopes = ["managed"]
+
+[[setting]]
+name = "disableRemoteControl"
+type = "bool"
+meaning = "turn off Remote Control everywhere"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "disableRemotePreviewScripts"
+type = "bool"
+meaning = "no scripts in SSH/WSL HTML previews (Desktop)"
+scopes = ["managed"]
+
+[[setting]]
+name = "disableSideloadFlags"
+type = "bool"
+meaning = "reject plugin/agent/MCP sideload CLI flags; v2.1.193+"
+scopes = ["managed"]
+since = "2.1.193"
+
+[[setting]]
+name = "disableSkillShellExecution"
+type = "bool"
+meaning = "block inline shell in skills and commands"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "disableWorkflows"
+type = "bool"
+meaning = "dynamic workflows off for all reached settings"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "editorMode"
+type = "enum"
+values = ["normal", "vim"]
+meaning = "prompt key bindings"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "effortLevel"
+type = "enum"
+values = ["low", "medium", "high", "xhigh"]
+meaning = "default effort for models without saved level"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "emojiCompletionEnabled"
+type = "bool"
+meaning = ":shortcode: emoji suggestions"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "enableAllProjectMcpServers"
+type = "bool"
+meaning = "approve all project .mcp.json servers"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "enableArtifact"
+type = "bool"
+meaning = "turn Artifact tool off"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "enabledMcpjsonServers"
+type = "list"
+meaning = "approve named project .mcp.json servers"
+shape = "string[]"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "enabledPlugins"
+type = "object"
+meaning = "enable/disable individual plugins"
+shape = "object {\"plugin@marketplace\": bool}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "enableWorkflows"
+type = "bool"
+meaning = "personal dynamic-workflow toggle"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "enforceAnthropicSignIn"
+type = "bool"
+meaning = "require claude.ai or Enterprise Console sign-in"
+scopes = ["managed"]
+since = "2.1.329"
+
+[[setting]]
+name = "enforceAvailableModels"
+type = "bool"
+meaning = "Default option resolves inside availableModels"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.175"
+
+[[setting]]
+name = "env"
+type = "object"
+meaning = "env vars for sessions and subprocesses"
+shape = "object {string: string}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "extraKnownMarketplaces"
+type = "object"
+meaning = "register marketplaces; alias additionalMarketplaces (v2.1.232+)"
+shape = "object {name: {source: {...}, autoUpdate?}}"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.232"
+
+[[setting]]
+name = "fallbackModel"
+type = "list"
+meaning = "fallback chain when primary overloaded"
+shape = "array of aliases/IDs (\"default\" expands); max 3 distinct kept"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "fastMode"
+type = "bool"
+meaning = "fast mode on (written by /fast)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "fastModePerSessionOptIn"
+type = "bool"
+meaning = "require /fast each session"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "feedbackDrafts"
+type = "enum"
+values = ["notify", "quiet", "off"]
+meaning = "Claude-drafted feedback behavior"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "feedbackSurveyRate"
+type = "number"
+meaning = "session quality survey probability"
+shape = "number 0–1"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "fileCheckpointingEnabled"
+type = "bool"
+meaning = "file snapshots for /rewind (ignored in -p/SDK)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "fileSuggestion"
+type = "object"
+meaning = "custom @ file autocomplete command"
+shape = "object {type: \"command\", command}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "footerLinksRegexes"
+type = "list"
+meaning = "footer badges from regex matches"
+shape = "array of {type:\"regex\", pattern, url, label?}"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "forceLoginGatewayUrl"
+type = "string"
+meaning = "gateway URL for /login screen; user settings v2.1.295+"
+shape = "string (full URL)"
+scopes = ["user", "managed", "session"]
+since = "2.1.295"
+
+[[setting]]
+name = "forceLoginMethod"
+type = "enum"
+values = ["claudeai", "console", "gateway"]
+meaning = "restrict login method"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "forceLoginOrgUUID"
+type = "any"
+meaning = "restrict claude.ai login to organization(s)"
+shape = "UUID string or UUID[]"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "forceRemoteSettingsRefresh"
+type = "bool"
+meaning = "block startup until server-managed settings fetched"
+scopes = ["managed"]
+
+[[setting]]
+name = "gatewayInternalNetworks"
+type = "list"
+meaning = "public IPv4 blocks allowed for gateway login"
+shape = "string[] IPv4 CIDRs (/8–/32, max 4); v2.1.268+"
+scopes = ["managed"]
+since = "2.1.268"
+
+[[setting]]
+name = "gcpAuthRefresh"
+type = "string"
+meaning = "refresh Google ADC when expired"
+shape = "string (command)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "hooks"
+type = "object"
+meaning = "lifecycle hooks"
+shape = "object {event: [{matcher, hooks: [{type: command|prompt|agent|http|mcp_tool, ...}]}]}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "httpHookAllowedEnvVars"
+type = "list"
+meaning = "env vars HTTP hooks may put in headers"
+shape = "string[] (env var names)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "idleCompaction"
+type = "bool"
+meaning = "compact idle long conversations"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.290"
+
+[[setting]]
+name = "includeCoAuthoredBy"
+type = "bool"
+meaning = "DEPRECATED; use attribution"
+scopes = ["user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[setting]]
+name = "includeGitInstructions"
+type = "bool"
+meaning = "include git instructions and status snapshot"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "inputNeededNotifEnabled"
+type = "bool"
+meaning = "push notification when input needed"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "isolatePeerMachines"
+type = "bool"
+meaning = "prompt before cross-machine messages (true from any scope)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "keybindingFlavor"
+type = "enum"
+values = ["classic", "readline"]
+meaning = "DEPRECATED (v2.1.261), no effect"
+scopes = ["user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[setting]]
+name = "language"
+type = "string"
+meaning = "response language"
+shape = "string (any language name, not validated)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "managedMcpServers"
+type = "object"
+meaning = "provide remote MCP servers to all users"
+shape = "object {name: http|sse entry with https url}; v2.1.259+"
+scopes = ["managed"]
+since = "2.1.259"
+
+[[setting]]
+name = "managedSourcesBehavior"
+type = "enum"
+values = ["first-wins", "merge"]
+meaning = "combine managed sources or use highest only"
+scopes = ["managed"]
+since = "2.1.242"
+
+[[setting]]
+name = "maxEffortLevel"
+type = "enum"
+values = ["low", "medium", "high", "xhigh", "max"]
+meaning = "cap effort level; lowest cap wins"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.267"
+
+[[setting]]
+name = "maxProseWidth"
+type = "number"
+meaning = "prose wrap width in columns"
+shape = "integer ≥40; v2.1.282+"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.282"
+
+[[setting]]
+name = "minimumVersion"
+type = "any"
+meaning = "block auto-updates below version (does not block start)"
+shape = "version string"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "model"
+type = "string"
+meaning = "model new sessions start with"
+shape = "string (alias or model ID)"
+scopes = ["user", "project", "local", "managed", "session"]
+note = "An alias (default, best, fable, opus, sonnet, haiku, opusplan; [1m] for 1M context) or a full model ID."
+
+[[setting]]
+name = "modelOverrides"
+type = "object"
+meaning = "map model IDs to provider IDs (ARNs etc.)"
+shape = "object {modelID: providerModelID}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "modelPicker"
+type = "object"
+meaning = "/model picker rows"
+shape = "object {options: [{model, label?, description?, behavesAs?}], replaceBuiltInOptions?: bool}; v2.1.242+"
+scopes = ["user", "managed", "session"]
+since = "2.1.242"
+
+[[setting]]
+name = "modelPricing"
+type = "object"
+meaning = "report spend at contracted rates"
+shape = "object {multiplier (>0 to ≤10), overrides: {modelId: {input, output, cacheRead, cacheWrite}}}; v2.1.242+"
+scopes = ["managed"]
+since = "2.1.242"
+
+[[setting]]
+name = "modelSettings"
+type = "object"
+meaning = "per-model saved effort and compact window"
+shape = "object {model: {effortLevel?, maxEffortLevel?, autoCompactWindow?}}; v2.1.251+"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.251"
+
+[[setting]]
+name = "otelHeadersHelper"
+type = "string"
+meaning = "command generating rotating OTel headers"
+shape = "string (command or path)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "outputStyle"
+type = "string"
+meaning = "output style"
+shape = "string (style name)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "parentSettingsBehavior"
+type = "enum"
+values = ["first-wins", "merge"]
+meaning = "apply host-embedded parent settings"
+scopes = ["managed"]
+
+[[setting]]
+name = "permissions"
+type = "object"
+meaning = "container for permission keys"
+shape = "object"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "permissions.additionalDirectories"
+type = "list"
+meaning = "extra working directories (project entries after trust)"
+shape = "string[] (paths)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "permissions.allow"
+type = "list"
+meaning = "tool uses approved without prompt (merges)"
+shape = "string[] (permission rules)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "permissions.ask"
+type = "list"
+meaning = "tool uses that always prompt"
+shape = "string[] (permission rules)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "permissions.blockReadsOutsideWorkingDirectories"
+type = "bool"
+meaning = "file tools refuse reads outside working dirs (true from any file wins)"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.257"
+
+[[setting]]
+name = "permissions.blockWritesOutsideWorkingDirectories"
+type = "bool"
+meaning = "Write/Edit/NotebookEdit refuse writes outside working dirs"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.314"
+
+[[setting]]
+name = "permissions.defaultMode"
+type = "enum"
+values = ["default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"]
+meaning = "starting permission mode"
+scopes = ["user", "project", "local", "managed", "session"]
+[setting.value_scopes]
+"auto" = ["user", "managed", "session"]
+"bypassPermissions" = ["user", "managed", "session"]
+
+[[setting]]
+name = "permissions.deny"
+type = "list"
+meaning = "block tool uses including secret reads (evaluated first)"
+shape = "string[] (permission rules)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "permissions.denyInsteadOfPrompting"
+type = "bool"
+meaning = "deny calls that would prompt (unattended)"
+scopes = ["user", "managed", "session"]
+since = "2.1.319"
+
+[[setting]]
+name = "permissions.disableBypassPermissionsMode"
+type = "enum"
+values = ["disable"]
+meaning = "forbid bypassPermissions mode"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "plansDirectory"
+type = "string"
+meaning = "plan file location"
+shape = "string (path relative to project root; default ~/.claude/plans)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "pluginConfigs"
+type = "object"
+meaning = "stored plugin userConfig answers"
+shape = "object {pluginId: {options, mcpServers?}}"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "pluginSuggestionMarketplaces"
+type = "list"
+meaning = "marketplaces that surface install suggestions"
+shape = "string[] (marketplace names)"
+scopes = ["managed"]
+
+[[setting]]
+name = "pluginTrustMessage"
+type = "string"
+meaning = "extra text in plugin trust warning"
+shape = "string"
+scopes = ["managed"]
+
+[[setting]]
+name = "policyHelper"
+type = "object"
+meaning = "executable that computes managed settings"
+shape = "object {path (required), timeoutMs (int ≥1000, default 10000), refreshIntervalMs (0 or ≥60000)}"
+scopes = ["managed"]
+
+[[setting]]
+name = "preferredNotifChannel"
+type = "enum"
+values = ["auto", "terminal_bell", "iterm2", "iterm2_with_bell", "kitty", "ghostty", "notifications_disabled"]
+meaning = "task-completion notification method"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "prefersReducedMotion"
+type = "bool"
+meaning = "reduce spinner/shimmer/flash animations"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "prependPlugins"
+type = "list"
+meaning = "managed mods run before user mods"
+shape = "string[] \"plugin@marketplace\""
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "processWrapper"
+type = "string"
+meaning = "corporate launcher for background processes (macOS/Linux); v2.1.210+"
+shape = "string (argv prefix)"
+scopes = ["user", "managed", "session"]
+since = "2.1.210"
+
+[[setting]]
+name = "promptCacheTtl"
+type = "enum"
+values = ["5m", "1h"]
+meaning = "main-conversation prompt cache lifetime"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.242"
+
+[[setting]]
+name = "promptSuggestionEnabled"
+type = "bool"
+meaning = "show grayed prompt suggestions"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "prUrlTemplate"
+type = "string"
+meaning = "redirect PR links"
+shape = "string (URL template with {host} {owner} {repo} {number} {url})"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "remote.defaultEnvironmentId"
+type = "string"
+meaning = "default cloud environment; ccpool_ only from user/managed/--settings"
+shape = "string (env_… or ccpool_…)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "remoteControlAtStartup"
+type = "bool"
+meaning = "auto-connect Remote Control at startup (project/local true ignored)"
+scopes = ["user", "project", "local", "managed", "session"]
+[setting.value_scopes]
+"true" = ["user", "managed", "session"]
+
+[[setting]]
+name = "requiredMaximumVersion"
+type = "any"
+meaning = "newest version allowed to start"
+shape = "version string; v2.1.163+"
+scopes = ["managed"]
+since = "2.1.163"
+
+[[setting]]
+name = "requiredMinimumVersion"
+type = "any"
+meaning = "oldest version allowed to start"
+shape = "version string; v2.1.163+"
+scopes = ["managed"]
+since = "2.1.163"
+
+[[setting]]
+name = "respectGitignore"
+type = "bool"
+meaning = "@ picker skips gitignored files"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "respondToBashCommands"
+type = "bool"
+meaning = "Claude replies after ! command runs"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox"
+type = "object"
+meaning = "container for sandbox keys"
+shape = "object"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.allowAppleEvents"
+type = "bool"
+meaning = "macOS Apple Events from sandbox"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "sandbox.allowNestedUserNamespaces"
+type = "bool"
+meaning = "user namespaces in sandbox (true ignored from project/local)"
+scopes = ["user", "managed", "session"]
+since = "2.1.305"
+[setting.value_scopes]
+"true" = ["user", "managed", "session"]
+
+[[setting]]
+name = "sandbox.allowUnsandboxedCommands"
+type = "bool"
+meaning = "retry blocked command outside sandbox; false = strict; v2.1.285+ hold vs project"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.285"
+
+[[setting]]
+name = "sandbox.autoAllowBashIfSandboxed"
+type = "bool"
+meaning = "run sandboxed Bash without prompt"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.bwrapPath"
+type = "string"
+meaning = "bubblewrap binary path (Linux/WSL2)"
+shape = "string (absolute)"
+scopes = ["managed"]
+
+[[setting]]
+name = "sandbox.credentials"
+type = "object"
+meaning = "protect credential files and env vars"
+shape = "object {files, envVars, allowPlaintextInject, awsPairs, sigv4}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.credentials.allowPlaintextInject"
+type = "bool"
+meaning = "allow mask substitution over plain HTTP"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "sandbox.credentials.awsPairs"
+type = "list"
+meaning = "link custom-named AWS env vars for re-signing"
+shape = "array of {accessKeyIdVar, secretAccessKeyVar, sessionTokenVar?}; v2.1.224+"
+scopes = ["user", "managed", "session"]
+since = "2.1.224"
+
+[[setting]]
+name = "sandbox.credentials.envVars"
+type = "list"
+meaning = "unset or mask env vars"
+shape = "array of {name, mode: deny|mask, extract?, onExtractNoMatch?, decode?, maskClaims?, injectHosts?}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.credentials.files"
+type = "list"
+meaning = "hide or mask credential files"
+shape = "array of {path, mode: deny|mask, extract?, onExtractNoMatch?, decode?, maskClaims?, maskDuplicates?, injectHosts?}; mask v2.1.221+"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.221"
+
+[[setting]]
+name = "sandbox.credentials.sigv4"
+type = "object"
+meaning = "handling of unresignable AWS request forms"
+shape = "object {streaming?, presigned?, sigv4a?} each [deny, passthrough] (default deny); v2.1.224+"
+scopes = ["user", "managed", "session"]
+since = "2.1.224"
+
+[[setting]]
+name = "sandbox.enabled"
+type = "bool"
+meaning = "sandbox Bash commands"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.enableWeakerNestedSandbox"
+type = "bool"
+meaning = "weaker Linux sandbox inside unprivileged container"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.enableWeakerNetworkIsolation"
+type = "bool"
+meaning = "macOS trustd access for MITM TLS"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.excludedCommands"
+type = "list"
+meaning = "commands run outside sandbox"
+shape = "string[] (Bash(...)-style patterns)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.failIfUnavailable"
+type = "bool"
+meaning = "exit at startup if sandbox cannot start"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.filesystem"
+type = "object"
+meaning = "sandbox path controls"
+shape = "object {allowWrite, denyWrite, denyRead, allowRead, allowManagedReadPathsOnly, disabled}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.filesystem.allowManagedReadPathsOnly"
+type = "bool"
+meaning = "honor only managed allowRead entries"
+scopes = ["managed"]
+
+[[setting]]
+name = "sandbox.filesystem.allowRead"
+type = "list"
+meaning = "re-open reads inside denyRead"
+shape = "string[] (paths)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.filesystem.allowWrite"
+type = "list"
+meaning = "extra sandbox-writable paths"
+shape = "string[] (paths)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.filesystem.denyRead"
+type = "list"
+meaning = "block sandbox reads"
+shape = "string[] (paths)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.filesystem.denyWrite"
+type = "list"
+meaning = "block sandbox writes"
+shape = "string[] (paths)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.filesystem.disabled"
+type = "bool"
+meaning = "turn off filesystem isolation, keep network isolation"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "sandbox.ignoreViolations"
+type = "object"
+meaning = "silence expected violation reports"
+shape = "object {commandSubstring: string[]}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.network"
+type = "object"
+meaning = "network controls"
+shape = "object {allowedDomains, deniedDomains, allowUnixSockets, allowAllUnixSockets, allowLocalBinding, allowMachLookup, allowManagedDomainsOnly, httpProxyPort, socksProxyPort, strictAllowlist, tlsTerminate}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.network.allowAllUnixSockets"
+type = "bool"
+meaning = "allow every Unix socket (Linux also VSOCK)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.network.allowedDomains"
+type = "list"
+meaning = "pre-allowed outbound domains"
+shape = "string[] (wildcards, optional :port, bracketed IPv6)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.network.allowLocalBinding"
+type = "bool"
+meaning = "macOS: listen on ports, reach localhost"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.network.allowMachLookup"
+type = "list"
+meaning = "extra macOS XPC services"
+shape = "string[] (trailing * = prefix)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.network.allowManagedDomainsOnly"
+type = "bool"
+meaning = "only managed allowedDomains count"
+scopes = ["managed"]
+
+[[setting]]
+name = "sandbox.network.allowUnixSockets"
+type = "list"
+meaning = "macOS Unix socket paths allowed"
+shape = "string[] (paths)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.network.deniedDomains"
+type = "list"
+meaning = "blocked outbound domains (always win)"
+shape = "string[]"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.network.httpProxyPort"
+type = "number"
+meaning = "route HTTP through own proxy"
+shape = "number"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.network.socksProxyPort"
+type = "number"
+meaning = "route SOCKS5 through own proxy"
+shape = "number"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sandbox.network.strictAllowlist"
+type = "bool"
+meaning = "deny non-allowlisted hosts instead of prompting"
+scopes = ["user", "managed", "session"]
+since = "2.1.219"
+
+[[setting]]
+name = "sandbox.network.tlsTerminate"
+type = "object"
+meaning = "proxy terminates TLS (experimental)"
+shape = "object {caCertPath?, caKeyPath?} or {}"
+scopes = ["user", "managed", "session"]
+stability = "experimental"
+
+[[setting]]
+name = "sandbox.ripgrep"
+type = "object"
+meaning = "custom ripgrep binary for sandbox"
+shape = "object {command, args?}"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "sandbox.socatPath"
+type = "string"
+meaning = "socat binary path"
+shape = "string (absolute)"
+scopes = ["managed"]
+
+[[setting]]
+name = "showClearContextOnPlanAccept"
+type = "bool"
+meaning = "clear-context option on plan approval"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "showThinkingSummaries"
+type = "bool"
+meaning = "full thinking summaries on Ctrl+O"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "showTurnDuration"
+type = "bool"
+meaning = "show turn duration message"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "skillListingBudgetFraction"
+type = "number"
+meaning = "context share for skill listing"
+shape = "number in (0,1] (default 0.01)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "skillListingMaxDescChars"
+type = "number"
+meaning = "max chars per skill description"
+shape = "integer (default 1536)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "skillOverrides"
+type = "object"
+meaning = "per-skill visibility"
+shape = "object {skillName: on|name-only|user-invocable-only|off}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "skipAutoPermissionPrompt"
+type = "bool"
+meaning = "skip first-entry auto-mode notice"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "skipDangerousModePermissionPrompt"
+type = "bool"
+meaning = "skip bypassPermissions confirmation"
+scopes = ["user", "local", "managed", "session"]
+
+[[setting]]
+name = "skipWebFetchPreflight"
+type = "bool"
+meaning = "skip WebFetch hostname safety check"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "spellcheck"
+type = "object"
+meaning = "prompt spell checking"
+shape = "object {enabled, checker: aspell|hunspell|ispell|auto, language?, color?}; v2.1.235+"
+scopes = ["user", "managed", "session"]
+since = "2.1.235"
+
+[[setting]]
+name = "spinnerTipsEnabled"
+type = "bool"
+meaning = "show spinner tips"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "spinnerTipsOverride"
+type = "object"
+meaning = "custom spinner tips"
+shape = "object {tips[], tipsFile?, label?, excludeDefault?}; v2.1.247+"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.247"
+
+[[setting]]
+name = "spinnerVerbs"
+type = "object"
+meaning = "spinner verbs"
+shape = "object {mode: append|replace, verbs: string[]}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "sshConfigs"
+type = "list"
+meaning = "shared Desktop SSH connections"
+shape = "array of {id, name, sshHost, sshPort?, sshIdentityFile?}"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "sshHostAllowlist"
+type = "list"
+meaning = "limit Desktop SSH hosts"
+shape = "string[] (hostname patterns; empty = SSH off)"
+scopes = ["managed"]
+
+[[setting]]
+name = "sshHostCommands"
+type = "list"
+meaning = "Desktop SSH host from command output"
+shape = "array of {id, name, command, sshIdentityFile?, startDirectory?}"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "statusLine"
+type = "object"
+meaning = "custom status line command"
+shape = "object {type: \"command\", command, padding?, refreshInterval? (≥1), hideVimModeIndicator?}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "strictKnownMarketplaces"
+type = "list"
+meaning = "allowlist marketplace sources; [] = total lockdown; alias allowedMarketplaces v2.1.232+"
+shape = "array of source objects [github, git, url, file, directory, hostPattern, pathPattern, skills-dir]"
+scopes = ["managed"]
+since = "2.1.232"
+
+[[setting]]
+name = "strictPluginOnlyCustomization"
+type = "flag"
+meaning = "block user/project customization surfaces"
+scopes = ["managed"]
+
+[[setting]]
+name = "subagentPromptCacheTtl"
+type = "enum"
+values = ["5m", "1h"]
+meaning = "cache lifetime for subagents and background requests"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.242"
+
+[[setting]]
+name = "switchModelsOnFlag"
+type = "bool"
+meaning = "switch models vs pause when classifier flags a request"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "syncClaudeAiPlugins"
+type = "bool"
+meaning = "stop downloading claude.ai plugins"
+scopes = ["user", "local", "managed", "session"]
+since = "2.1.273"
+
+[[setting]]
+name = "syncClaudeAiSkills"
+type = "bool"
+meaning = "stop downloading claude.ai skills"
+scopes = ["user", "local", "managed", "session"]
+
+[[setting]]
+name = "syntaxHighlightingDisabled"
+type = "bool"
+meaning = "plain-text code and diffs"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "taskOutputMaxChars"
+type = "removed"
+meaning = "REMOVED v2.1.277; no effect"
+scopes = ["user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[setting]]
+name = "teammateMode"
+type = "enum"
+values = ["in-process", "auto", "tmux", "iterm2"]
+meaning = "agent team display mode"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "terminalProgressBarEnabled"
+type = "bool"
+meaning = "terminal progress indicator"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "terminalTitleFromRename"
+type = "bool"
+meaning = "tab title uses /rename name"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "theme"
+type = "enum"
+values = ["auto", "dark", "light", "dark-daltonized", "light-daltonized", "dark-ansi", "light-ansi", "custom:<slug>", "custom:<plugin>:<slug>"]
+meaning = "color theme"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "timeFormat"
+type = "enum"
+values = ["auto", "12-hour", "24-hour", "24-hour-utc"]
+meaning = "displayed time format"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.257"
+
+[[setting]]
+name = "timeZone"
+type = "string"
+meaning = "zone for displayed times"
+shape = "string (IANA zone name); v2.1.257+"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.257"
+
+[[setting]]
+name = "tui"
+type = "enum"
+values = ["default", "fullscreen"]
+meaning = "terminal renderer"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "ultracode"
+type = "bool"
+meaning = "start sessions with ultracode on (read only; Claude Code never writes it)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "useAutoModeDuringPlan"
+type = "bool"
+meaning = "classifier reviews shell commands in plan mode"
+scopes = ["user", "project", "local", "managed", "session"]
+[setting.value_scopes]
+"false" = ["user", "local", "managed", "session"]
+
+[[setting]]
+name = "verbose"
+type = "bool"
+meaning = "show full tool output"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "viewMode"
+type = "enum"
+values = ["default", "verbose", "focus"]
+meaning = "starting transcript view; overrides verbose (focus needs tui fullscreen)"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "vimInsertModeRemaps"
+type = "object"
+meaning = "INSERT-mode two-key escape (needs editorMode vim)"
+shape = "object {\"xy\": \"<Esc>\"} (only \"<Esc>\" target)"
+scopes = ["user", "managed", "session"]
+
+[[setting]]
+name = "voice"
+type = "object"
+meaning = "voice dictation settings"
+shape = "object {enabled: bool, autoSubmit?: bool (hold only), mode?: [hold, tap]}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "voiceEnabled"
+type = "bool"
+meaning = "DEPRECATED (v2.1.92); voice.enabled wins"
+scopes = ["user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[setting]]
+name = "wheelScrollAccelerationEnabled"
+type = "bool"
+meaning = "fullscreen wheel acceleration"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "workflowKeywordTriggerEnabled"
+type = "bool"
+meaning = "typing \"ultracode\" starts a workflow"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "workflowSizeGuideline"
+type = "enum"
+values = ["unrestricted", "small", "medium", "large"]
+meaning = "advisory agent-count target"
+scopes = ["user", "project", "local", "managed", "session"]
+since = "2.1.271"
+
+[[setting]]
+name = "worktree"
+type = "object"
+meaning = "git worktree settings"
+shape = "object {baseRef, symlinkDirectories, sparsePaths, bgIsolation, location}"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "worktree.baseRef"
+type = "enum"
+values = ["fresh", "head"]
+meaning = "branch new worktrees from origin or local HEAD"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "worktree.bgIsolation"
+type = "enum"
+values = ["worktree", "none"]
+meaning = "background session edit isolation"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "worktree.location"
+type = "string"
+meaning = "remote worktree folder for Desktop SSH; Desktop v1.44121.0+"
+shape = "string (absolute or ~/)"
+scopes = ["user", "session"]
+
+[[setting]]
+name = "worktree.sparsePaths"
+type = "list"
+meaning = "sparse-checkout directories"
+shape = "string[]"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "worktree.symlinkDirectories"
+type = "list"
+meaning = "directories symlinked into each worktree"
+shape = "string[]"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "wslInheritsWindowsSettings"
+type = "bool"
+meaning = "WSL reads Windows managed policy chain"
+scopes = ["managed"]
+since = "2.1.282"
+
+[[setting]]
+name = "autoConnectIde"
+type = "bool"
+meaning = "auto-connect IDE from external terminal"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "autoInstallIdeExtension"
+type = "bool"
+meaning = "/ide may install IDE extension"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "claudeInChromeDefaultEnabled"
+type = "bool"
+meaning = "Chrome integration on at session start"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "copyFullResponse"
+type = "bool"
+meaning = "/copy copies full response without picker"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "copyOnSelect"
+type = "bool"
+meaning = "copy mouse selection automatically"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "defaultToAgentsView"
+type = "bool"
+meaning = "bare claude opens agent view"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "diffTool"
+type = "enum"
+values = ["auto", "terminal"]
+meaning = "where IDE-connected diffs appear"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "externalEditorContext"
+type = "bool"
+meaning = "Ctrl+G buffer shows last response"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "leftArrowOpensAgents"
+type = "bool"
+meaning = "left arrow on empty prompt opens agent view"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "prStatusFooterEnabled"
+type = "bool"
+meaning = "PR/MR status badge in footer"
+scopes = ["user", "project", "local", "managed", "session"]
+
+[[setting]]
+name = "permissionExplainerEnabled"
+type = "removed"
+meaning = "REMOVED v2.1.257"
+scopes = ["user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[setting]]
+name = "teammateDefaultModel"
+type = "removed"
+meaning = "REMOVED v2.1.234"
+scopes = ["user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[env]]
+name = "ANTHROPIC_API_KEY"
+type = "string"
+meaning = "API key sent as X-Api-Key; overrides subscription after approval"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_AUTH_TOKEN"
+type = "string"
+meaning = "custom Authorization header value (Bearer prefixed)"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_AWS_API_KEY"
+type = "string"
+meaning = "Claude Platform on AWS workspace API key"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_AWS_BASE_URL"
+type = "string"
+meaning = "override Claude Platform on AWS endpoint"
+shape = "url"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_AWS_WORKSPACE_ID"
+type = "string"
+meaning = "required workspace ID for Claude Platform on AWS"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_BASE_URL"
+type = "string"
+meaning = "route API requests through proxy or gateway"
+shape = "url"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_BEDROCK_BASE_URL"
+type = "string"
+meaning = "override Bedrock endpoint"
+shape = "url"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_BEDROCK_MANTLE_BASE_URL"
+type = "string"
+meaning = "override Bedrock Mantle endpoint"
+shape = "url"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_BEDROCK_REGION_PREFIX"
+type = "enum"
+values = ["us", "eu", "apac", "jp", "au", "global"]
+meaning = "preferred cross-region inference prefix"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_BEDROCK_SERVICE_TIER"
+type = "enum"
+values = ["default", "flex", "priority"]
+meaning = "Bedrock service tier"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_BETAS"
+type = "string"
+meaning = "extra anthropic-beta header values"
+shape = "str (comma list)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_CUSTOM_HEADERS"
+type = "string"
+meaning = "extra request headers"
+shape = "str (\"Name: Value\", newline-separated)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_CUSTOM_MODEL_OPTION"
+type = "string"
+meaning = "add custom /model picker entry"
+shape = "str (model ID)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"
+type = "string"
+meaning = "picker description of custom entry"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"
+type = "string"
+meaning = "picker name of custom entry"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES"
+type = "string"
+meaning = "custom model capabilities"
+shape = "str (comma list, e.g. effort,thinking)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_FABLE_MODEL"
+type = "string"
+meaning = "model the fable alias resolves to"
+shape = "str (model ID)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION"
+type = "string"
+meaning = "picker description, pinned Fable"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_FABLE_MODEL_NAME"
+type = "string"
+meaning = "picker name, pinned Fable"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_FABLE_MODEL_SUPPORTED_CAPABILITIES"
+type = "string"
+meaning = "pinned Fable capabilities"
+shape = "str (comma list)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_HAIKU_MODEL"
+type = "string"
+meaning = "model haiku alias resolves to; background tasks"
+shape = "str (model ID)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION"
+type = "string"
+meaning = "picker description, pinned Haiku"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME"
+type = "string"
+meaning = "picker name, pinned Haiku"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES"
+type = "string"
+meaning = "pinned Haiku capabilities"
+shape = "str (comma list)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_MODEL"
+type = "string"
+meaning = "model new sessions start on; used only if no file sets model"
+shape = "str (model ID)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_OPUS_MODEL"
+type = "string"
+meaning = "model opus alias resolves to; opusplan in Plan Mode"
+shape = "str (model ID)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION"
+type = "string"
+meaning = "picker description, pinned Opus"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME"
+type = "string"
+meaning = "picker name, pinned Opus"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"
+type = "string"
+meaning = "pinned Opus capabilities"
+shape = "str (comma list)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_SONNET_MODEL"
+type = "string"
+meaning = "model sonnet alias resolves to; opusplan outside Plan Mode"
+shape = "str (model ID)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION"
+type = "string"
+meaning = "picker description, pinned Sonnet"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME"
+type = "string"
+meaning = "picker name, pinned Sonnet"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES"
+type = "string"
+meaning = "pinned Sonnet capabilities"
+shape = "str (comma list)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_FEDERATION_RULE_ID"
+type = "string"
+meaning = "Workload Identity Federation rule ID"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["ANTHROPIC_ORGANIZATION_ID"]
+
+[[env]]
+name = "ANTHROPIC_FOUNDRY_API_KEY"
+type = "string"
+meaning = "Microsoft Foundry API key"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_FOUNDRY_AUTH_TOKEN"
+type = "string"
+meaning = "Foundry bearer token; takes precedence over API key"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_FOUNDRY_BASE_URL"
+type = "string"
+meaning = "full Foundry base URL (alt to RESOURCE)"
+shape = "url"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_FOUNDRY_RESOURCE"
+type = "string"
+meaning = "Foundry resource name; required unless BASE_URL set"
+shape = "str (resource name, not URL)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_GOOGLE_CLOUD_BASE_URL"
+type = "string"
+meaning = "override Claude on Google Cloud endpoint"
+shape = "url"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_GOOGLE_CLOUD_LOCATION"
+type = "string"
+meaning = "Google Cloud location in request URL"
+shape = "str (default global)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_GOOGLE_CLOUD_PROJECT"
+type = "string"
+meaning = "Google Cloud project ID"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_GOOGLE_CLOUD_WORKSPACE_ID"
+type = "string"
+meaning = "workspace ID; required unless newer version with BASE_URL set"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_MODEL"
+type = "string"
+meaning = "model override; --model overrides it"
+shape = "str (model setting name)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_ORGANIZATION_ID"
+type = "string"
+meaning = "Workload Identity Federation org ID"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["ANTHROPIC_FEDERATION_RULE_ID"]
+
+[[env]]
+name = "ANTHROPIC_PROFILE"
+type = "string"
+meaning = "Anthropic profile to authenticate with"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_SMALL_FAST_MODEL"
+type = "string"
+meaning = "use ANTHROPIC_DEFAULT_HAIKU_MODEL"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[env]]
+name = "ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION"
+type = "string"
+meaning = "Haiku-class region on Bedrock/Mantle; Bedrock needs HAIKU or SMALL_FAST set"
+shape = "str (region)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_VERTEX_BASE_URL"
+type = "string"
+meaning = "override Google Cloud Agent Platform endpoint"
+shape = "url"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_VERTEX_PROJECT_ID"
+type = "string"
+meaning = "GCP project ID for Agent Platform"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ANTHROPIC_WORKSPACE_ID"
+type = "string"
+meaning = "workspace ID for federation token exchange"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "API_FORCE_IDLE_TIMEOUT"
+type = "any"
+meaning = "0 disables body idle timeout; 1 keeps it on for all"
+shape = "0 / 1 / other"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "API_TIMEOUT_MS"
+type = "number"
+meaning = "per-attempt response-header timeout"
+shape = "int ms (default 600000; max 2147483647; 0 removes limit)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "AWS_BEARER_TOKEN_BEDROCK"
+type = "string"
+meaning = "Bedrock API key auth"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "BASH_DEFAULT_TIMEOUT_MS"
+type = "number"
+meaning = "foreground Bash/PowerShell default timeout"
+shape = "int ms (default 120000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "BASH_MAX_OUTPUT_LENGTH"
+type = "number"
+meaning = "Bash output read-back limit; ignored if bashOutputMaxChars set"
+shape = "int chars (default 30000; max 150000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "BASH_MAX_TIMEOUT_MS"
+type = "number"
+meaning = "max timeout model may set"
+shape = "int ms (default 600000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "BETA_TRACING_ENDPOINT"
+type = "string"
+meaning = "beta tracing endpoint [beta]"
+shape = "url (OTLP/HTTP)"
+scopes = ["shell", "user", "managed", "session"]
+requires = ["ENABLE_BETA_TRACING_DETAILED"]
+
+[[env]]
+name = "CCR_FORCE_BUNDLE"
+type = "flag"
+meaning = "force claude --cloud to upload local repo"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDECODE"
+type = "flag"
+meaning = "marks subprocesses spawned by Claude Code"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS"
+type = "flag"
+meaning = "disable built-in subagents (-p only)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_AGENT_SDK_MCP_NO_PREFIX"
+type = "flag"
+meaning = "SDK MCP tools without mcp__ prefix"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_ASYNC_AGENT_STALL_TIMEOUT_MS"
+type = "number"
+meaning = "subagent stall timeout"
+shape = "int ms (default 600000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
+type = "number"
+meaning = "compaction trigger percent (cannot raise threshold)"
+shape = "int 1–100"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_AUTO_BACKGROUND_TASKS"
+type = "flag"
+meaning = "force auto-backgrounding of long agent/MCP tasks"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_AX_PREPARK_MS"
+type = "number"
+meaning = "screen-reader write delay"
+shape = "int ms (default 0; cap 5000)"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_AX_SCREEN_READER"
+type = "flag"
+meaning = "screen-reader mode; overrides axScreenReader"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_AX_STARTUP_QUIET_MS"
+type = "number"
+meaning = "hold first render in screen-reader mode"
+shape = "int ms (default 3000; cap 600000)"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR"
+type = "flag"
+meaning = "return to original cwd after each Bash command"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_BYTE_STREAM_IDLE_TIMEOUT_MS"
+type = "number"
+meaning = "byte watchdog timeout; overrides CLAUDE_STREAM_IDLE_TIMEOUT_MS for that watchdog"
+shape = "int ms (clamped 10s–30min)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CLIENT_PRESENCE_FILE"
+type = "string"
+meaning = "file signalling user presence; suppresses push notifications"
+shape = "path"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ACCESSIBILITY"
+type = "flag"
+meaning = "keep native terminal cursor visible"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"
+type = "flag"
+meaning = "load memory files from --add-dir directories"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT"
+type = "flag"
+meaning = "repaint whole screen each frame (fullscreen)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ALWAYS_ENABLE_EFFORT"
+type = "flag"
+meaning = "send effort parameter for every model"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_API_KEY_HELPER_TTL_MS"
+type = "number"
+meaning = "apiKeyHelper credential refresh interval"
+shape = "int ms"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ARTIFACT_AUTO_OPEN"
+type = "flag"
+meaning = "do not auto-open browser for artifacts"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ARTIFACT_COMMENTS"
+type = "flag"
+meaning = "do not read or reply to artifact comments"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ARTIFACT_COMMENTS_AUTOREACT"
+type = "flag"
+meaning = "do not reply to artifact comments unprompted"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ARTIFACT_PUBLISH_EDITS"
+type = "flag"
+meaning = "disable one-step artifact edits; v2.1.300+"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+since = "2.1.300"
+
+[[env]]
+name = "CLAUDE_CODE_ATTRIBUTION_HEADER"
+type = "flag"
+meaning = "omit attribution block from system prompt"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_AUTO_COMPACT_WINDOW"
+type = "number"
+meaning = "auto-compact window"
+shape = "int tokens ≥100000 (suffixes like 200k)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_AUTO_CONNECT_IDE"
+type = "bool"
+meaning = "override IDE auto-connect; precedes autoConnectIde"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_AUTO_MODE_MODEL"
+type = "string"
+meaning = "classifier model for auto mode"
+shape = "str (full model ID)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_AUTO_MODE_SERVER"
+type = "flag"
+meaning = "use own classifier instead of server-side review"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_AUTOMOUNT_ROOTS"
+type = "string"
+meaning = "automount roots to skip when scanning"
+shape = "path list (: or ; separated)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_AWS_CHAIN_RESOLVE_TIMEOUT_MS"
+type = "number"
+meaning = "AWS default credential chain timeout"
+shape = "ms (default 60000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_BASH_EDIT_DIFF"
+type = "flag"
+meaning = "overrides bashEditDiffEnabled"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_BG_TASKS_REPORT_RUNNING"
+type = "flag"
+meaning = "non-interactive running status at turn end"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_BRIDGE_SESSION_ID"
+type = "string"
+meaning = "Remote Control session ID in subprocesses"
+shape = "str (auto-set)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_BS_AS_CTRL_BACKSPACE"
+type = "flag"
+meaning = "read 0x08 as plain or Ctrl+Backspace"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_CERT_STORE"
+type = "list"
+meaning = "CA certificate sources"
+shape = "list [bundled, system] (default bundled,system)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_CHILD_SESSION"
+type = "flag"
+meaning = "marks nested session subprocesses"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_CLIENT_CERT"
+type = "string"
+meaning = "mTLS client certificate"
+shape = "path"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_CODE_CLIENT_KEY"]
+
+[[env]]
+name = "CLAUDE_CODE_CLIENT_KEY"
+type = "string"
+meaning = "mTLS client private key"
+shape = "path"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_CODE_CLIENT_CERT"]
+
+[[env]]
+name = "CLAUDE_CODE_CLIENT_KEY_PASSPHRASE"
+type = "string"
+meaning = "passphrase for encrypted client key"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_CODE_CLIENT_KEY"]
+
+[[env]]
+name = "CLAUDE_CODE_CONFIG_LOCK_WAIT_MS"
+type = "number"
+meaning = "wait for ~/.claude.json lock when adding MCP servers"
+shape = "ms"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_CONNECT_TIMEOUT_MS"
+type = "removed"
+meaning = "removed v2.1.186, no-op; use API_TIMEOUT_MS"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[env]]
+name = "CLAUDE_CODE_DEBUG_LOGS_DIR"
+type = "string"
+meaning = "debug log file path"
+shape = "path (file, despite name)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DEBUG_LOG_LEVEL"
+type = "enum"
+values = ["verbose", "info", "warn", "error"]
+meaning = "minimum debug log level"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_1M_CONTEXT"
+type = "flag"
+meaning = "turn off 1M context window support"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING"
+type = "flag"
+meaning = "fixed thinking budget instead of adaptive"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_ADVISOR_TOOL"
+type = "flag"
+meaning = "disable advisor tool"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_AGENT_VIEW"
+type = "flag"
+meaning = "turn off background agents and agent view (= disableAgentView)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN"
+type = "flag"
+meaning = "disable fullscreen rendering"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_ARTIFACT"
+type = "flag"
+meaning = "turn off Artifact tool; no settings file re-enables"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_ATTACHMENTS"
+type = "flag"
+meaning = "disable @ attachment processing"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_AUTH_REFRESH_LOCK"
+type = "flag"
+meaning = "run auth refresh command without cross-process lock"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_AUTO_MEMORY"
+type = "flag"
+meaning = "disable auto memory"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"
+type = "flag"
+meaning = "remove background run options"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_BEDROCK_CONTENT_TYPE_DEFAULT"
+type = "flag"
+meaning = "do not assume missing Content-Type is event stream"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_BEDROCK_CONTENT_TYPE_GUARD"
+type = "flag"
+meaning = "skip Bedrock event-stream content-type check"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_BG_EXIT_HANDOFF"
+type = "flag"
+meaning = "stop in-flight background work on supervisor restart"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP"
+type = "flag"
+meaning = "do not kill background shells under memory pressure"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_BG_STABLE_PATH"
+type = "flag"
+meaning = "run background host from installed binary"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_BUNDLED_SKILLS"
+type = "flag"
+meaning = "remove bundled skills (= disableBundledSkills)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_CFC_PROMPT"
+type = "flag"
+meaning = "omit Chrome section of system prompt"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_CLAUDE_MDS"
+type = "flag"
+meaning = "load no CLAUDE.md memory files"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_CRON"
+type = "flag"
+meaning = "disable scheduled tasks and /loop"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_DANGEROUS_RM_TIMEOUT"
+type = "flag"
+meaning = "turn off auto/bypass time limit on critical rm"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_DEFERRED_TOOL_RESUME"
+type = "flag"
+meaning = "skip deferred tool call on -p resume"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS"
+type = "flag"
+meaning = "strip pre-release beta headers and fields (name refers to betas)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_EXPLORE_PLAN_AGENTS"
+type = "flag"
+meaning = "disable built-in Explore and Plan subagents"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_FAST_MODE"
+type = "flag"
+meaning = "disable fast mode"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_FEATURE_FLAGS"
+type = "flag"
+meaning = "stop feature-flag fetching (Remote Control unavailable); supersedes DISABLE_GROWTHBOOK"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY"
+type = "flag"
+meaning = "disable session quality surveys"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_FILE_CHECKPOINTING"
+type = "flag"
+meaning = "disable /rewind snapshots (overrides fileCheckpointingEnabled)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_FILE_MENTIONS"
+type = "flag"
+meaning = "do not expand @ file mentions"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"
+type = "flag"
+meaning = "remove git instructions and status snapshot (overrides includeGitInstructions)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT"
+type = "flag"
+meaning = "do not read sh -c scripts for rm checks"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_LEGACY_MODEL_REMAP"
+type = "flag"
+meaning = "no remap of Opus 4 / 4.1 on Anthropic API"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_MCP_TASK_BACKGROUND"
+type = "flag"
+meaning = "Claude waits for MCP task result in interactive session"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_MODEL_ACCESS_FALLBACK"
+type = "flag"
+meaning = "no automatic switch to older model on access loss (Bedrock/Google)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_MOUNTED_DRIVE_RM_PROMPT"
+type = "flag"
+meaning = "turn off mounted-drive rm prompt"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_MOUSE"
+type = "flag"
+meaning = "disable mouse tracking in fullscreen"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_MOUSE_CLICKS"
+type = "flag"
+meaning = "disable click/drag/hover in fullscreen; wheel still works"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_MTLS_RELOAD_ON_STALE_CONNECTION"
+type = "flag"
+meaning = "do not reload mTLS cert on connection error"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"
+type = "any"
+meaning = "disable telemetry, updates, feedback and other nonessential traffic; presence-based"
+shape = "any non-empty (0/false still disable)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK"
+type = "flag"
+meaning = "no non-streaming fallback after stream failure"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_NOTIFICATION_PRESENCE_CHECK"
+type = "flag"
+meaning = "send PushNotification even when terminal focused"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL"
+type = "flag"
+meaning = "skip auto-registering official marketplace"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_PERMISSION_PROMPT_NOTIFY_HOOKS"
+type = "flag"
+meaning = "skip Notification hooks for permission requests in SDK hosts"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_POLICY_SKILLS"
+type = "flag"
+meaning = "skip system-wide managed skills directory"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_POWERSHELL_CMD_RM_DENY"
+type = "flag"
+meaning = "turn off PowerShell cmd rd/del system-path deny"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_PROXY_SCHEME_REPAIR"
+type = "flag"
+meaning = "stop at startup on bare host:port proxy value"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK"
+type = "flag"
+meaning = "turn off automatic model switch on safety flag"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_SHELL_HEAD_START"
+type = "flag"
+meaning = "no shell startup pre-run during first Bash command"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_STRUCTURED_OUTPUTS"
+type = "flag"
+meaning = "do not send structured-output field (gateways)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_SUBSTITUTION_RM_PROMPT"
+type = "flag"
+meaning = "turn off command-substitution rm check"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_TERMINAL_TITLE"
+type = "flag"
+meaning = "no automatic terminal title updates"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_THINKING"
+type = "flag"
+meaning = "omit thinking parameter (compat for proxies)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_ULTRAREVIEW_TRUST_CHECK"
+type = "flag"
+meaning = "skip trust check for ultrareview"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_ULTRATHINK"
+type = "flag"
+meaning = "turn off ultrathink keyword"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT"
+type = "flag"
+meaning = "no proactive compaction for unrecognized model IDs"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_VIRTUAL_SCROLL"
+type = "flag"
+meaning = "render every message in fullscreen"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_WEB_FETCH"
+type = "flag"
+meaning = "turn off WebFetch tool"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_WINDOWS_SHELL_LAUNCHER"
+type = "flag"
+meaning = "start PowerShell directly, not via cmd.exe"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DISABLE_WORKFLOWS"
+type = "flag"
+meaning = "disable workflows (= disableWorkflows)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_DROP_UNAVAILABLE_DEFERRED_TOOL"
+type = "flag"
+meaning = "drop unavailable deferred tool call on -p resume"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_EFFORT_LEVEL"
+type = "enum"
+values = ["low", "medium", "high", "xhigh", "max", "auto", "unset"]
+meaning = "effort level; overrides --effort, /effort and effort settings (auto/unset = send none)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS"
+type = "flag"
+meaning = "add session_state_changed messages"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_AUTO_MODE"
+type = "flag"
+meaning = "accepted, no effect"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_AWAY_SUMMARY"
+type = "flag"
+meaning = "force recap off/on (overrides awaySummaryEnabled)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_BACKGROUND_PLUGIN_REFRESH"
+type = "flag"
+meaning = "refresh plugins at turn boundaries in -p"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_CFC"
+type = "flag"
+meaning = "start CLI with Chrome on/off; 1 ignored in project/local"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL"
+type = "flag"
+meaning = "send survey to own OTel collector when nonessential traffic blocked"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING"
+type = "flag"
+meaning = "stream tool-call inputs as generated"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"
+type = "flag"
+meaning = "populate /model from gateway /v1/models"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_OPUS_4_7_FAST_MODE"
+type = "removed"
+meaning = "removed v2.1.142"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION"
+type = "flag"
+meaning = "overrides promptSuggestionEnabled"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_SHARE_BUNDLE"
+type = "flag"
+meaning = "/share saves report locally"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_TASKS"
+type = "flag"
+meaning = "use legacy TodoWrite instead of Task tools"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_TELEMETRY"
+type = "flag"
+meaning = "enable OpenTelemetry collection; required for exporters"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_ENABLE_TODO_TOOLS"
+type = "flag"
+meaning = "task-tracking tools on every model"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS"
+type = "flag"
+meaning = "no prompt for dangerous rm in bypassPermissions"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_EXIT_AFTER_STOP_DELAY"
+type = "number"
+meaning = "wait after idle before exit (SDK/scripts)"
+shape = "ms"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"
+type = "flag"
+meaning = "enable agent teams"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+stability = "experimental"
+
+[[env]]
+name = "CLAUDE_CODE_EXPERIMENTAL_CODE_MODE"
+type = "flag"
+meaning = "start in Code Mode; not honored from managed/project/local"
+scopes = ["shell", "user", "session"]
+stability = "experimental"
+note = "Code Mode: Claude writes a short JavaScript script that runs several tool calls in parallel and returns only what it needs; every call still passes your deny/ask rules and hooks. A managed 0 keeps it off; a managed 1 also needs a 1 in user settings."
+
+[[env]]
+name = "CLAUDE_CODE_EXTRA_BODY"
+type = "any"
+meaning = "merge into top level of model request bodies"
+shape = "JSON object"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS"
+type = "number"
+meaning = "file read token limit"
+shape = "int (default 25000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_FORCE_SESSION_PERSISTENCE"
+type = "flag"
+meaning = "force transcript persistence in nested sessions"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_FORCE_STRIKETHROUGH"
+type = "flag"
+meaning = "force ~~text~~ strikethrough"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_FORCE_SYNC_OUTPUT"
+type = "flag"
+meaning = "force DEC 2026 synchronized output"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_FORCE_TERMINAL_IMAGES"
+type = "flag"
+meaning = "draw mod Image elements as pictures"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_FORK_SUBAGENT"
+type = "flag"
+meaning = "turn fork mode off"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_FORWARD_SUBAGENT_TEXT"
+type = "flag"
+meaning = "subagent text in stream-json output (= --forward-subagent-text)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_FULL_SIGN_IN_LINK"
+type = "flag"
+meaning = "print full claude.ai login URL; v2.1.330+"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+since = "2.1.330"
+
+[[env]]
+name = "CLAUDE_CODE_GATEWAY_HINT_HEADERS"
+type = "flag"
+meaning = "send or stop gateway hint headers"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_GATEWAY_MODEL_DISCOVERY_TIMEOUT_MS"
+type = "number"
+meaning = "discovery timeout"
+shape = "ms (default 3000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"]
+
+[[env]]
+name = "CLAUDE_CODE_GIT_BASH_PATH"
+type = "string"
+meaning = "Windows Git Bash location"
+shape = "path (bash.exe)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_GLOB_HIDDEN"
+type = "flag"
+meaning = "exclude dotfiles from Glob"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_GLOB_NO_IGNORE"
+type = "flag"
+meaning = "make Glob respect .gitignore"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_GLOB_TIMEOUT_SECONDS"
+type = "number"
+meaning = "Glob/Grep timeout"
+shape = "int s (default 20; 60 on WSL)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_GOAL_CHECKIN_MINUTES"
+type = "number"
+meaning = "goal check-in interval"
+shape = "int minutes (default 30; 0 off; max 10080)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_GZIP_REQUEST_BODIES"
+type = "flag"
+meaning = "disable request-body gzip"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_HIDE_CWD"
+type = "flag"
+meaning = "hide working directory in logo"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_IDE_HOST_OVERRIDE"
+type = "string"
+meaning = "override IDE connection host"
+shape = "str (host)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL"
+type = "flag"
+meaning = "stop /ide installing extension (= autoInstallIdeExtension false)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_IDE_SKIP_VALID_CHECK"
+type = "flag"
+meaning = "skip IDE lockfile validation"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS"
+type = "number"
+meaning = "idle compaction threshold"
+shape = "int (default 200000; min 100000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_LOOP_KEEPALIVE"
+type = "flag"
+meaning = "one extra self-paced /loop iteration"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS"
+type = "number"
+meaning = "concurrent subagent cap"
+shape = "int (default 20)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MAX_CONTEXT_TOKENS"
+type = "number"
+meaning = "override assumed context window"
+shape = "int"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH"
+type = "number"
+meaning = "MCP description length cap"
+shape = "int chars (defaults 4096 / 16384)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MAX_OUTPUT_TOKENS"
+type = "number"
+meaning = "max output tokens per request"
+shape = "int"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MAX_RETRIES"
+type = "number"
+meaning = "API retry count"
+shape = "int (default 10)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION"
+type = "removed"
+meaning = "removed v2.1.224, no-op"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[env]]
+name = "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH"
+type = "number"
+meaning = "subagent nesting depth"
+shape = "int (default 3)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MAX_TURNS"
+type = "number"
+meaning = "agentic turn cap (= --max-turns)"
+shape = "positive int"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION"
+type = "number"
+meaning = "WebSearch cap"
+shape = "int (default 200)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MCP_ALLOWLIST_ENV"
+type = "flag"
+meaning = "stdio MCP servers get minimal env"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS"
+type = "number"
+meaning = "MCP call auto-background delay"
+shape = "ms (default 120000; 0 off)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MCP_STARTUP_WAIT_MS"
+type = "number"
+meaning = "non-interactive MCP startup wait"
+shape = "ms (0 skips)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT"
+type = "number"
+meaning = "MCP tool idle timeout"
+shape = "ms (0 disables)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MESSAGING_SOCKET"
+type = "string"
+meaning = "inbox socket path; ignored from all settings files"
+shape = "path (set by CC)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_MESSAGING_TOKEN"
+type = "string"
+meaning = "per-session inbox token; ignored from all settings files"
+shape = "str (set by CC)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_NATIVE_CURSOR"
+type = "flag"
+meaning = "show terminal's native cursor"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_NEW_INIT"
+type = "flag"
+meaning = "/init runs interactive setup"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_NONBLOCKING_STDOUT"
+type = "flag"
+meaning = "non-blocking terminal output writes"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_NONSTREAMING_TIMEOUT_RETRIES"
+type = "number"
+meaning = "retries for timed-out non-streaming requests"
+shape = "int (0 fails on first timeout)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_NO_FLICKER"
+type = "flag"
+meaning = "enable fullscreen rendering (research preview)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+stability = "experimental"
+
+[[env]]
+name = "CLAUDE_CODE_OAUTH_REFRESH_TOKEN"
+type = "string"
+meaning = "OAuth refresh token"
+shape = "str"
+scopes = ["shell", "user", "managed", "session"]
+requires = ["CLAUDE_CODE_OAUTH_SCOPES"]
+
+[[env]]
+name = "CLAUDE_CODE_OAUTH_SCOPES"
+type = "string"
+meaning = "scopes for refresh token"
+shape = "str (space-separated)"
+scopes = ["shell", "user", "managed", "session"]
+requires = ["CLAUDE_CODE_OAUTH_REFRESH_TOKEN"]
+
+[[env]]
+name = "CLAUDE_CODE_OAUTH_TOKEN"
+type = "string"
+meaning = "OAuth access token (alt to /login)"
+shape = "str"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE"
+type = "removed"
+meaning = "removed v2.1.160, no-op"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[env]]
+name = "CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH"
+type = "number"
+meaning = "content attribute limit"
+shape = "int UTF-16 units (default 61440)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_OTEL_DIAG_STDERR"
+type = "flag"
+meaning = "exporter errors to stderr"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_OTEL_FLUSH_TIMEOUT_MS"
+type = "number"
+meaning = "span flush timeout"
+shape = "ms (default 5000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_OTEL_HEADERS_HELPER_DEBOUNCE_MS"
+type = "number"
+meaning = "dynamic header refresh interval"
+shape = "ms (default 1740000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_OTEL_SHUTDOWN_TIMEOUT_MS"
+type = "number"
+meaning = "exporter shutdown timeout"
+shape = "ms (default 2000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_OVERLOADED_RETRY_BASE_DELAY_MS"
+type = "number"
+meaning = "starting 529 backoff"
+shape = "ms 500–32000 (default 500)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS"
+type = "number"
+meaning = "529 backoff ceiling"
+shape = "ms 32000–300000 (default 32000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE"
+type = "flag"
+meaning = "run package-manager upgrade in background (Homebrew/WinGet)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PERFORCE_MODE"
+type = "flag"
+meaning = "Perforce-aware write protection"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PLUGIN_CACHE_DIR"
+type = "string"
+meaning = "plugins root directory"
+shape = "path (default ~/.claude/plugins)"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PLUGIN_DIRS"
+type = "string"
+meaning = "load plugin directories for session; v2.1.280+"
+shape = "paths (: or ; separated)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+since = "2.1.280"
+
+[[env]]
+name = "CLAUDE_CODE_PLUGIN_DIR_WATCH"
+type = "flag"
+meaning = "reload mods on file change"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PLUGIN_GIT_TIMEOUT_MS"
+type = "number"
+meaning = "marketplace clone timeout"
+shape = "ms (default 120000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PLUGIN_KEEP_MARKETPLACE_ON_FAILURE"
+type = "flag"
+meaning = "keep existing marketplace when refresh fails"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PLUGIN_PREFER_HTTPS"
+type = "flag"
+meaning = "clone GitHub shorthand over HTTPS"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PLUGIN_SEED_DIR"
+type = "string"
+meaning = "read-only plugin seed directories"
+shape = "paths (: or ;)"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_POWERSHELL_RESPECT_EXECUTION_POLICY"
+type = "flag"
+meaning = "respect machine execution policy"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS"
+type = "number"
+meaning = "background wait ceiling in -p"
+shape = "ms (default 600000; 0 = indefinite)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PROCESS_WRAPPER"
+type = "string"
+meaning = "launcher for spawned processes (= processWrapper; wins if both)"
+shape = "str (argv prefix)"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PROJECT_DIR_NAME"
+type = "string"
+meaning = "projects/ directory name"
+shape = "str"
+scopes = ["shell"]
+requires = ["CLAUDE_CONFIG_DIR"]
+
+[[env]]
+name = "CLAUDE_CODE_PROMPT_CACHE_TTL"
+type = "enum"
+values = ["5m", "1h"]
+meaning = "main-conversation cache TTL"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PROPAGATE_TRACEPARENT"
+type = "flag"
+meaning = "propagate W3C trace context to custom proxy"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST"
+type = "string"
+meaning = "host platform controls provider routing; ignores user routing vars"
+shape = "str (host-set)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_PROXY_RESOLVES_HOSTS"
+type = "flag"
+meaning = "proxy performs DNS resolution"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_REMOTE"
+type = "flag"
+meaning = "cloud session marker; ignored from every file"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_REMOTE_SESSION_ID"
+type = "string"
+meaning = "cloud session ID"
+shape = "str (set in cloud)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_RESTRICTED"
+type = "flag"
+meaning = "start in restricted mode (= --restricted)"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_RESUME_HINT_COMMAND"
+type = "string"
+meaning = "wrapper name in resume hint"
+shape = "str matching ^\\w[\\w-]*$"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_RESUME_INTERRUPTED_TURN"
+type = "flag"
+meaning = "auto-resume session that ended mid-turn"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_RESUME_INTERRUPTED_TURN_MAX_AGE_MS"
+type = "number"
+meaning = "age bound on auto-resume"
+shape = "ms positive"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_CODE_RESUME_INTERRUPTED_TURN"]
+
+[[env]]
+name = "CLAUDE_CODE_RESUME_PROMPT"
+type = "string"
+meaning = "continuation message"
+shape = "str (default \"Continue from where you left off.\")"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_CODE_RESUME_INTERRUPTED_TURN"]
+
+[[env]]
+name = "CLAUDE_CODE_RESUME_SHOWS_CUT_OFF_CALLS"
+type = "flag"
+meaning = "keep cut-off tool calls on resume"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_CODE_RESUME_INTERRUPTED_TURN"]
+
+[[env]]
+name = "CLAUDE_CODE_RETRY_WATCHDOG"
+type = "flag"
+meaning = "retry 429/529 indefinitely (unattended runs)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS"
+type = "number"
+meaning = "cap total 429/529 wait"
+shape = "ms positive"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_CODE_RETRY_WATCHDOG"]
+
+[[env]]
+name = "CLAUDE_CODE_RETRY_WATCHDOG_USAGE_LIMIT_RECHECK_MS"
+type = "number"
+meaning = "usage-limit recheck interval"
+shape = "ms 60000–10800000"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_CODE_RETRY_WATCHDOG"]
+
+[[env]]
+name = "CLAUDE_CODE_SAFE_MODE"
+type = "flag"
+meaning = "start with customizations disabled (= --safe-mode)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SCRIPT_CAPS"
+type = "any"
+meaning = "per-session script call limits"
+shape = "JSON object {substring: int}"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"]
+
+[[env]]
+name = "CLAUDE_CODE_SCROLL_SPEED"
+type = "number"
+meaning = "mouse wheel multiplier in fullscreen"
+shape = "number >0 ≤20"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SEND_FEEDBACK"
+type = "flag"
+meaning = "toggle Claude-drafted feedback"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS"
+type = "number"
+meaning = "SessionEnd hook time budget"
+shape = "ms (default 1500; auto-raised up to 60000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SESSION_ID"
+type = "string"
+meaning = "current session ID in subprocesses"
+shape = "str (auto-set)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SHELL"
+type = "string"
+meaning = "shell for Bash tool"
+shape = "path (bash or zsh)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SHELL_PREFIX"
+type = "string"
+meaning = "wrapper prefix for spawned shell commands"
+shape = "path or command"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SIMPLE"
+type = "flag"
+meaning = "minimal prompt and core tools (= --bare)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT"
+type = "flag"
+meaning = "shorter or full system prompt"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SKIP_ANTHROPIC_AWS_AUTH"
+type = "flag"
+meaning = "skip client auth for Claude Platform on AWS"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SKIP_ANTHROPIC_GOOGLE_CLOUD_AUTH"
+type = "flag"
+meaning = "skip Google Cloud auth for managed Claude"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SKIP_AWS_CRED_CACHE"
+type = "flag"
+meaning = "disable AWS credential cache"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SKIP_BEDROCK_AUTH"
+type = "flag"
+meaning = "skip AWS auth for Bedrock"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SKIP_FAST_MODE_NETWORK_ERRORS"
+type = "flag"
+meaning = "treat failed fast-mode check as available"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK"
+type = "flag"
+meaning = "skip client fast-mode org check"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SKIP_FOUNDRY_AUTH"
+type = "flag"
+meaning = "skip Azure auth for Foundry (ignored if Foundry key/token set)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SKIP_MANTLE_AUTH"
+type = "flag"
+meaning = "skip AWS auth for Mantle"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SKIP_MODEL_ACCESS_MEMORY"
+type = "flag"
+meaning = "disable startup model-access memory"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SKIP_PROMPT_HISTORY"
+type = "flag"
+meaning = "no prompt history or transcripts written"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SKIP_VERTEX_AUTH"
+type = "flag"
+meaning = "skip Google auth for Agent Platform"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_STARTUP_FAILURE_RESULTS"
+type = "flag"
+meaning = "write result message on startup failure (stream-json)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP"
+type = "number"
+meaning = "max consecutive Stop hook blocks"
+shape = "int (default 8; 0 disables)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_STRICT_INLINE_SHELL_RM_PROMPT"
+type = "flag"
+meaning = "flag more inline -c scripts for rm review"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_SUBAGENT_EFFORT"
+type = "enum"
+values = ["low", "medium", "high", "xhigh", "max"]
+meaning = "default subagent/workflow effort"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SUBAGENT_HISTORY"
+type = "flag"
+meaning = "hide reopen row for ended subagents"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SUBAGENT_MODEL"
+type = "string"
+meaning = "default subagent model"
+shape = "str (alias, full name, or inherit)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+note = "An alias, a full model ID, or inherit."
+
+[[env]]
+name = "CLAUDE_CODE_SUBAGENT_MODEL_FORCE"
+type = "flag"
+meaning = "force one model on all subagents"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL"
+type = "enum"
+values = ["5m", "1h"]
+meaning = "cache TTL for non-main requests"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"
+type = "flag"
+meaning = "strip credentials from subprocess environments"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SYNC_PLUGIN_INSTALL"
+type = "flag"
+meaning = "wait for plugin install in -p mode"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SYNC_PLUGIN_INSTALL_TIMEOUT_MS"
+type = "number"
+meaning = "bound plugin install wait"
+shape = "ms"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_CODE_SYNC_PLUGIN_INSTALL"]
+
+[[env]]
+name = "CLAUDE_CODE_SYNC_SKILLS"
+type = "flag"
+meaning = "download claude.ai-enabled skills"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SYNC_SKILLS_INSTALL_TIMEOUT_MS"
+type = "number"
+meaning = "mid-session skills resync timeout"
+shape = "ms (default 30000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_SYNC_SKILLS_WAIT_TIMEOUT_MS"
+type = "number"
+meaning = "initial skill list wait"
+shape = "ms (default 5000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_CODE_SYNC_SKILLS"]
+
+[[env]]
+name = "CLAUDE_CODE_SYNTAX_HIGHLIGHT"
+type = "flag"
+meaning = "disable diff syntax highlighting"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_TASK_LIST_ID"
+type = "string"
+meaning = "share task list across sessions"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_TMPDIR"
+type = "string"
+meaning = "temp directory override"
+shape = "path"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_TMUX_TRUECOLOR"
+type = "any"
+meaning = "allow truecolor in tmux [presence-based]"
+shape = "any non-empty (0/false still on)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_TOOL_MEMORY_CGROUP_EXCLUDE"
+type = "any"
+meaning = "exclude process kinds from memory cap"
+shape = "comma list [mcp, lsp, none, all-new]"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_TOOL_MEMORY_LIMIT"
+type = "any"
+meaning = "Bash/PowerShell memory cap (Linux/WSL)"
+shape = "size (e.g. 4G) or 0/off"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_TRANSCRIPT_LOCAL_GC"
+type = "flag"
+meaning = "trim large -p/SDK transcripts"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_USER_DIALOG_TIMEOUT_MS"
+type = "number"
+meaning = "forwarded dialog deadline (overrides dialogExpiry)"
+shape = "ms (0 or negative disables)"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_USE_ANTHROPIC_AWS"
+type = "flag"
+meaning = "use Claude Platform on AWS"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD"
+type = "flag"
+meaning = "use Claude on Google Cloud (Anthropic managed)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_USE_BEDROCK"
+type = "flag"
+meaning = "use Amazon Bedrock"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_USE_FOUNDRY"
+type = "flag"
+meaning = "use Microsoft Foundry"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_USE_MANTLE"
+type = "flag"
+meaning = "use Bedrock Mantle endpoint"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_USE_POWERSHELL_TOOL"
+type = "flag"
+meaning = "enable or disable PowerShell tool (1 on Linux/macOS needs pwsh)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_USE_VERTEX"
+type = "flag"
+meaning = "use Google Cloud Agent Platform"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_WARN_DISK_FREE_GIB"
+type = "number"
+meaning = "warn when disk free below value"
+shape = "int GiB"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_WARN_MEMORY_FREE_GIB"
+type = "number"
+meaning = "warn when memory free below value (Linux/WSL)"
+shape = "int GiB"
+scopes = ["shell"]
+
+[[env]]
+name = "CLAUDE_CODE_WEBFETCH_CACHE_TTL_MS"
+type = "number"
+meaning = "WebFetch cache duration"
+shape = "int ms (default 900000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_WEBFETCH_DEADLINE_MS"
+type = "number"
+meaning = "WebFetch download deadline"
+shape = "int ms (default 300000; 0 removes limit)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_WEB_SEARCH_REFILLS_PER_HOUR"
+type = "number"
+meaning = "WebSearch refill rate"
+shape = "int (default 100 interactive; 0 non-interactive)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_WORKER_CHECKIN_SCHEDULE"
+type = "any"
+meaning = "background subagent reminder waits"
+shape = "comma list of secs 1–86400"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+requires = ["CLAUDE_AUTO_BACKGROUND_TASKS=1"]
+
+[[env]]
+name = "CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS"
+type = "number"
+meaning = "concurrent workflow agents"
+shape = "int 1–256 (default 16)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_WORKFLOW_PREFIX_STAGGER_MS"
+type = "number"
+meaning = "prompt-cache prefix stagger wait"
+shape = "ms (default 5000; 0 disables)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CODE_YOU_SHOULD_KNOW_DEBUG"
+type = "flag"
+meaning = "show mod check lines above prompt"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_CONFIG_DIR"
+type = "string"
+meaning = "config directory override (default ~/.claude)"
+shape = "path (absolute in settings)"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_EFFORT"
+type = "string"
+meaning = "effort level in Bash/hook subprocesses"
+shape = "str (auto-set)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_ENABLE_BYTE_WATCHDOG"
+type = "flag"
+meaning = "force byte watchdog on/off"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_ENABLE_BYTE_WATCHDOG_BEDROCK"
+type = "flag"
+meaning = "byte watchdog on Bedrock event streams"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_ENABLE_STREAM_WATCHDOG"
+type = "flag"
+meaning = "force event-level watchdog off/on"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_ENV_FILE"
+type = "string"
+meaning = "script run before each Bash command"
+shape = "path"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_JOB_DIR"
+type = "string"
+meaning = "scratch dir for background session"
+shape = "path (auto-set in background sessions)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_PID"
+type = "number"
+meaning = "Claude process PID in subprocesses"
+shape = "int (auto-set)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_REMOTE_CONTROL_SESSION_NAME_PREFIX"
+type = "string"
+meaning = "Remote Control session name prefix"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_STREAM_FIRST_BYTE_TIMEOUT_MS"
+type = "number"
+meaning = "first-byte streaming deadline"
+shape = "ms"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_STREAM_IDLE_TIMEOUT_MS"
+type = "number"
+meaning = "streaming idle watchdog timeout"
+shape = "ms (min 300000 when set)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "CLAUDE_SUBAGENT_BG_SHELL_MAX_MS"
+type = "removed"
+meaning = "removed v2.1.260, no-op"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[env]]
+name = "DEBUG"
+type = "flag"
+meaning = "enable debug mode (= --debug)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_AUTOUPDATER"
+type = "flag"
+meaning = "disable background auto-updates"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_AUTO_COMPACT"
+type = "flag"
+meaning = "disable auto compaction and idle compaction (overrides autoCompactEnabled)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_COMPACT"
+type = "flag"
+meaning = "disable all compaction incl. /compact"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_COST_WARNINGS"
+type = "flag"
+meaning = "disable cost warnings"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_DOCTOR_COMMAND"
+type = "flag"
+meaning = "hide /doctor and /checkup"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_ERROR_REPORTING"
+type = "any"
+meaning = "presence-based"
+shape = "any non-empty (0/false still opt out)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_EXTRA_USAGE_COMMAND"
+type = "flag"
+meaning = "hide /usage-credits"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_FEEDBACK_COMMAND"
+type = "flag"
+meaning = "disable /feedback, /bug, /share"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_BUG_COMMAND"
+type = "flag"
+meaning = "older name of DISABLE_FEEDBACK_COMMAND (still accepted)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_GROWTHBOOK"
+type = "flag"
+meaning = "superseded by CLAUDE_CODE_DISABLE_FEATURE_FLAGS; still works"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[env]]
+name = "DISABLE_INSTALLATION_CHECKS"
+type = "flag"
+meaning = "disable installation warnings"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_INSTALL_GITHUB_APP_COMMAND"
+type = "flag"
+meaning = "hide /install-github-app"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_INTERLEAVED_THINKING"
+type = "flag"
+meaning = "no interleaved-thinking beta header"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_LOGIN_COMMAND"
+type = "flag"
+meaning = "hide /login"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_LOGOUT_COMMAND"
+type = "flag"
+meaning = "hide /logout"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_PROMPT_CACHING"
+type = "flag"
+meaning = "disable prompt caching for all models"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_PROMPT_CACHING_FABLE"
+type = "flag"
+meaning = "disable prompt caching for Fable models"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_PROMPT_CACHING_HAIKU"
+type = "flag"
+meaning = "disable prompt caching for default Haiku"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_PROMPT_CACHING_OPUS"
+type = "flag"
+meaning = "disable prompt caching for default Opus"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_PROMPT_CACHING_SONNET"
+type = "flag"
+meaning = "disable prompt caching for default Sonnet"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_TELEMETRY"
+type = "any"
+meaning = "opt out of telemetry; presence-based"
+shape = "any non-empty (0/false still opt out)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_UPDATES"
+type = "flag"
+meaning = "block all updates incl. manual claude update"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DISABLE_UPGRADE_COMMAND"
+type = "flag"
+meaning = "hide /upgrade"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "DO_NOT_TRACK"
+type = "bool"
+meaning = "cross-tool opt-out of telemetry"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ENABLE_BETA_TRACING_DETAILED"
+type = "flag"
+meaning = "detailed beta tracing with content [beta]"
+scopes = ["shell", "user", "managed", "session"]
+requires = ["BETA_TRACING_ENDPOINT"]
+
+[[env]]
+name = "ENABLE_CLAUDEAI_MCP_SERVERS"
+type = "flag"
+meaning = "stop fetching claude.ai MCP servers"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ENABLE_PROMPT_CACHING_1H"
+type = "flag"
+meaning = "request 1-hour cache TTL"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "ENABLE_PROMPT_CACHING_1H_BEDROCK"
+type = "flag"
+meaning = "use ENABLE_PROMPT_CACHING_1H"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+stability = "deprecated"
+
+[[env]]
+name = "ENABLE_TOOL_SEARCH"
+type = "enum"
+values = ["true", "false", "auto", "auto:N"]
+meaning = "MCP tool search control"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "FORCE_AUTOUPDATE_PLUGINS"
+type = "flag"
+meaning = "force plugin auto-updates even if DISABLE_AUTOUPDATER set"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "FORCE_HYPERLINK"
+type = "flag"
+meaning = "force OSC 8 hyperlinks on or off"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "FORCE_PROMPT_CACHING_5M"
+type = "flag"
+meaning = "force 5-minute cache TTL (overrides other TTL settings)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "HTTP_PROXY"
+type = "string"
+meaning = "HTTP proxy"
+shape = "url"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "HTTPS_PROXY"
+type = "string"
+meaning = "HTTPS proxy"
+shape = "url"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "IS_DEMO"
+type = "any"
+meaning = "demo mode; presence-based"
+shape = "any non-empty (0/false still on)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MAX_MCP_OUTPUT_TOKENS"
+type = "number"
+meaning = "max tokens in MCP responses"
+shape = "int (default 25000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MAX_STRUCTURED_OUTPUT_RETRIES"
+type = "number"
+meaning = "retries for --json-schema validation in -p"
+shape = "int (default 5)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MAX_THINKING_TOKENS"
+type = "number"
+meaning = "fixed extended-thinking budget"
+shape = "int (0 disables on Anthropic API except models that cannot disable thinking; min 1024 when positive)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_CLIENT_SECRET"
+type = "string"
+meaning = "OAuth client secret for MCP servers"
+shape = "str"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_CONNECTION_NONBLOCKING"
+type = "flag"
+meaning = "wait for MCP servers before first query"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_CONNECT_TIMEOUT_MS"
+type = "number"
+meaning = "blocking MCP connect batch wait"
+shape = "ms (default 5000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_DISCOVERY_CACHE"
+type = "flag"
+meaning = "discovery cache on/off"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_DISCOVERY_CACHE_MAX_STALE_S"
+type = "number"
+meaning = "max discovery-cache entry age"
+shape = "seconds (default 14400; cap 7 days)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_DISCOVERY_CACHE_STRIKES"
+type = "number"
+meaning = "failed refreshes before discard"
+shape = "int (default 1)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_DISCOVERY_CACHE_TTL_S"
+type = "number"
+meaning = "cache use before background refresh"
+shape = "seconds (default 900)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_OAUTH_CALLBACK_PORT"
+type = "any"
+meaning = "fixed OAuth redirect port"
+shape = "port"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_PROTOCOL_NEGOTIATION"
+type = "enum"
+values = ["legacy", "auto"]
+meaning = "MCP protocol revision probing (v2 runtime)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_REMOTE_SERVER_CONNECTION_BATCH_SIZE"
+type = "number"
+meaning = "parallel remote MCP connections"
+shape = "int (default 20)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_SDK_GENERATION"
+type = "enum"
+values = ["v1", "v2"]
+meaning = "pin MCP client runtime"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_SERVER_CONNECTION_BATCH_SIZE"
+type = "number"
+meaning = "parallel stdio MCP connections"
+shape = "int (default 3)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_TIMEOUT"
+type = "number"
+meaning = "MCP server startup timeout"
+shape = "ms (default 30000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "MCP_TOOL_TIMEOUT"
+type = "number"
+meaning = "MCP tool execution timeout"
+shape = "ms (default 100000000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "NO_PROXY"
+type = "list"
+meaning = "hosts bypassing proxy"
+shape = "list (domains/IPs)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT"
+type = "number"
+meaning = "OTel attribute length limit"
+shape = "int"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "OTEL_LOG_ASSISTANT_RESPONSES"
+type = "flag"
+meaning = "include response text in logs"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "OTEL_LOG_MANAGED_SETTINGS"
+type = "flag"
+meaning = "add redacted managed settings to logs"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "OTEL_LOG_RAW_API_BODIES"
+type = "flag"
+meaning = "emit raw API bodies"
+scopes = ["shell", "user", "managed", "session"]
+
+[[env]]
+name = "OTEL_LOG_TOOL_CONTENT"
+type = "flag"
+meaning = "include tool output in span event [PL-x apart from off values]"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "OTEL_LOG_TOOL_DETAILS"
+type = "flag"
+meaning = "include tool arguments and details [PL-x apart from off values]"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+
+[[env]]
+name = "OTEL_LOG_USER_PROMPTS"
+type = "flag"
+meaning = "include prompt text in telemetry (default redacted) [PL-x apart from off values]"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+checked = false
+
+[[env]]
+name = "OTEL_METRICS_INCLUDE_ACCOUNT_UUID"
+type = "flag"
+meaning = "exclude account UUID (default included)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+checked = false
+
+[[env]]
+name = "OTEL_METRICS_INCLUDE_ENTRYPOINT"
+type = "flag"
+meaning = "include session entrypoint (default excluded)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+checked = false
+
+[[env]]
+name = "OTEL_METRICS_INCLUDE_REPOSITORY"
+type = "flag"
+meaning = "add vcs.* repository attributes (default excluded)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+checked = false
+
+[[env]]
+name = "OTEL_METRICS_INCLUDE_RESOURCE_ATTRIBUTES"
+type = "flag"
+meaning = "exclude OTEL_RESOURCE_ATTRIBUTES keys (default included)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+checked = false
+
+[[env]]
+name = "OTEL_METRICS_INCLUDE_SESSION_ID"
+type = "flag"
+meaning = "exclude session ID (default included)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+checked = false
+
+[[env]]
+name = "OTEL_METRICS_INCLUDE_VERSION"
+type = "flag"
+meaning = "include Claude Code version (default excluded)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+checked = false
+
+[[env]]
+name = "OTEL_RESOURCE_INCLUDE_HOST"
+type = "flag"
+meaning = "add host.name / host.id"
+scopes = ["shell", "user", "managed", "session"]
+checked = false
+
+[[env]]
+name = "SLASH_COMMAND_TOOL_CHAR_BUDGET"
+type = "number"
+meaning = "skill metadata budget"
+shape = "int chars (default 1% of context; fallback 8000)"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+checked = false
+
+[[env]]
+name = "TASK_MAX_OUTPUT_LENGTH"
+type = "removed"
+meaning = "removed v2.1.277, no-op"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+stability = "deprecated"
+checked = false
+
+[[env]]
+name = "USE_BUILTIN_RIPGREP"
+type = "flag"
+meaning = "use system rg instead of bundled"
+scopes = ["shell", "user", "project", "local", "managed", "session"]
+checked = false
+
+
+# Combinations Claude Code documents. A rule fires when every key in `when` is set (to `is`, when given).
+[[rule]]
+when = [{ key = "alwaysThinkingEnabled", is = false }, { key = "MAX_THINKING_TOKENS" }]
+level = "warn"
+message = "MAX_THINKING_TOKENS above 0 turns thinking on even with alwaysThinkingEnabled = false"
+
+[[rule]]
+when = [{ key = "effortLevel" }, { key = "CLAUDE_CODE_EFFORT_LEVEL" }]
+level = "warn"
+message = "CLAUDE_CODE_EFFORT_LEVEL overrides effortLevel, so effortLevel has no effect"
+
+[[rule]]
+when = [{ key = "model" }, { key = "ANTHROPIC_MODEL" }]
+level = "warn"
+message = "ANTHROPIC_MODEL overrides model, so model has no effect"
+
+[[rule]]
+when = [{ key = "vimInsertModeRemaps" }]
+unless = [{ key = "editorMode", is = "vim" }]
+level = "warn"
+message = "vimInsertModeRemaps has no effect unless editorMode is vim"
+
+[[rule]]
+when = [{ key = "includeCoAuthoredBy" }, { key = "attribution" }]
+level = "warn"
+message = "attribution replaces includeCoAuthoredBy for the parts it sets"
+
+[[rule]]
+when = [{ key = "sandbox.failIfUnavailable", is = true }]
+unless = [{ key = "sandbox.enabled", is = true }]
+level = "warn"
+message = "sandbox.failIfUnavailable only matters when sandbox.enabled is true"
+
+[[rule]]
+when = [{ key = "autoCompactEnabled", is = false }, { key = "autoCompactWindow" }]
+level = "warn"
+message = "autoCompactWindow has no effect while autoCompactEnabled is false"
+
+[[rule]]
+when = [{ key = "CLAUDE_CODE_EXPERIMENTAL_CODE_MODE", is = "1" }, { key = "permissions.defaultMode", is = "auto" }]
+level = "info"
+message = "in auto mode a classifier reviews each Code Mode script before it runs"

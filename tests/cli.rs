@@ -1276,6 +1276,80 @@ fn a_seat_whose_desktop_runs_in_the_default_folder_is_told_to_keep_it() {
 }
 
 #[test]
+fn the_settings_catalog_checks_presets_where_they_are_applied() {
+    let e = setup_with(
+        r#"[preset.fast]
+        description = "code mode"
+        [preset.fast.settings]
+        effortLevel = "hihg"
+        [preset.fast.settings.env]
+        CLAUDE_CODE_EXPERIMENTAL_CODE_MODE = "1"
+        [profile.disk]
+        env = { CLAUDE_CODE_WARN_DISK_FREE_GIB = "5", CLAUDE_CODE_EXPERIMENTAL_CODE_MODE = "1" }
+        [[group]]
+        name = "g"
+        paths = ["~/proj-a"]
+        preset = "fast"
+        apply = "project""#,
+    );
+
+    // Discovery: experimental settings, details, and typos.
+    let t = ok(&e
+        .seat("", &["settings", "search", "--experimental"])
+        .output()
+        .unwrap());
+    assert!(t.contains("CLAUDE_CODE_EXPERIMENTAL_CODE_MODE"), "{t}");
+    let t = ok(&e
+        .seat("", &["settings", "show", "permissions.defaultMode"])
+        .output()
+        .unwrap());
+    assert!(t.contains("auto: only in user, managed, session"), "{t}");
+    let t = text(
+        &e.seat("", &["settings", "show", "efortLevel"])
+            .output()
+            .unwrap(),
+    );
+    assert!(t.contains("did you mean effortLevel?"), "{t}");
+
+    // A bad value, and code mode in a project file, where Claude Code ignores it.
+    let out = e
+        .seat("", &["settings", "check", "fast", "--target", "local"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let t = text(&out);
+    assert!(t.contains("effortLevel = \"hihg\" is not valid"), "{t}");
+    assert!(
+        t.contains("ignores CLAUDE_CODE_EXPERIMENTAL_CODE_MODE"),
+        "{t}"
+    );
+    let t = text(&e.seat("", &["doctor"]).output().unwrap());
+    assert!(
+        t.contains("preset 'fast'") && t.contains("ignores CLAUDE_CODE_EXPERIMENTAL_CODE_MODE"),
+        "{t}"
+    );
+    let t = text(&e.seat("proj-a", &["explain"]).output().unwrap());
+    assert!(t.contains("from the settings catalog"), "{t}");
+
+    // As a session profile, code mode works; a launch-only variable reaches the process environment.
+    let out = e
+        .seat("proj-b", &["settings", "check", "disk"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", text(&out));
+    let t = text(
+        &e.seat("proj-b", &["run", "b", "--with", "disk"])
+            .output()
+            .unwrap(),
+    );
+    assert!(t.contains("DISKWARN=5"), "{t}");
+    assert!(
+        t.contains("CLAUDE_CODE_EXPERIMENTAL_CODE_MODE"),
+        "passed in --settings: {t}"
+    );
+}
+
+#[test]
 fn shell_init_replaces_aliases_of_the_same_name() {
     // Old setups often have `alias claude-work=...`: re-sourcing shell-init over them must still define functions.
     // Unix only: on Windows `bash` may be the WSL launcher, which can't read this test's Windows paths.

@@ -29,9 +29,10 @@ track = []
 # effortLevel = "high"
 # env = { CLAUDE_CODE_SUBAGENT_MODEL = "haiku" }
 # A profile also works for one session only, without changing settings.json: `seat run --with <name> <seat>`,
-# or `seat term`, which opens it in a new terminal window. E.g. experimental features for a single project:
+# or `seat term`, which opens it in a new terminal window. The built-in `experimental` profile turns on Claude
+# Code's experimental Code Mode; your own can add more (`seat settings search --experimental` lists them):
 # [profile.experimental]
-# env = { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1" }
+# env = { CLAUDE_CODE_EXPERIMENTAL_CODE_MODE = "1", CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1" }
 
 # Agents in use; a turned-off agent's seats can't start (`seat disable agent:codex`, or `seat tui`).
 # [agents]

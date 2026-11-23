@@ -402,6 +402,17 @@ pub fn explain(cfg: &Config, seat: &Seat, dir: &Path, with: &[String]) -> String
     for (k, v, l) in eff {
         s += &format!("  {k:<width$} = {v}   ← {l}\n");
     }
+    let mut notes = crate::catalog::check(&session, crate::catalog::Target::Session);
+    if r.apply == Apply::Project {
+        notes.extend(crate::catalog::check(
+            &r.settings,
+            crate::catalog::Target::Local,
+        ));
+    }
+    if !notes.is_empty() {
+        s += "\nfrom the settings catalog (`seat settings show <key>`):\n";
+        s += &crate::catalog::report(&notes);
+    }
     s
 }
 

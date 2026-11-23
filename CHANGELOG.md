@@ -7,6 +7,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- The settings catalog: every Claude Code setting and environment variable (243 settings, 401 variables, from Claude
+  Code's docs) with its type, allowed values, where Claude Code honors it, and whether it is experimental, plus the
+  combinations the docs warn about. `seat settings search`, `seat settings show` and `seat settings check` use it.
+  `seat doctor` and `seat explain` check presets and profiles against it: bad values, typos with suggestions, and
+  settings Claude Code ignores where a preset is applied.
+- A built-in `experimental` profile that turns on Claude Code's experimental Code Mode for a session
+  (`--with experimental`).
+
+### Changed
+- Session presets and profiles export environment variables Claude Code reads only from the launch environment, so
+  they take effect instead of being ignored in `--settings`.
+
 ## [0.3.0] - 2026-11-23
 
 ### Added

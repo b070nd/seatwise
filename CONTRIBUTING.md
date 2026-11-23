@@ -30,6 +30,9 @@ run the `seat` binary against temporary folders with fake `claude` and `codex` b
 - `skills/` holds the skills `seat skills install` puts into a seat. They are embedded in the binary.
 - `tests/cli.rs` has the end-to-end tests.
 - `config.example.toml` documents every option. Update it with the code.
+- `catalog/claude-code.toml` is the settings catalog, taken from Claude Code's settings and env-var docs. When Claude
+  Code adds or changes a setting, update the entry (type, values, `scopes`, `stability`) and `CHECKED` in
+  `src/catalog.rs`. Add a `[[rule]]` for a documented combination.
 - `docs/` has the architecture and the security model.
 
 ## Conventions

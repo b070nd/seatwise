@@ -125,6 +125,14 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
             .with_context(|| format!("unknown profile '{name}'"))?;
         crate::plan::merge(&mut session, &profile);
     }
+    // Variables Claude Code reads only from the launch environment can't travel in `--settings`: export them.
+    if let Some(env) = session["env"].as_object() {
+        for (k, v) in env {
+            if crate::catalog::launch_only(k) {
+                cmd.env(k, v.as_str().map_or_else(|| v.to_string(), str::to_string));
+            }
+        }
+    }
     if session.as_object().is_some_and(|o| !o.is_empty()) {
         cmd.arg("--settings").arg(session.to_string());
     }

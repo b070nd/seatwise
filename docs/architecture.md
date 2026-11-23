@@ -28,6 +28,7 @@ One module per concern, in `src/`:
 | `claude` | Claude Code's and Codex's own files: the signed-in account, hooks in `settings.json` / `hooks.json` |
 | `launch` | Starting an agent on the right seat with its environment, settings layers and preset |
 | `preset` | Use-case presets for folder groups, resolved the same way every time, and `seat explain` |
+| `catalog` | The settings catalog (`catalog/claude-code.toml`): every Claude Code setting and env var, where it's honored, and checks |
 | `plan`, `usage` | The seat's plan, usage profiles sized to it, and the rate limits used |
 | `sentinel` | Fixed checks for costly settings, the report, notifications and the OS scheduler entries |
 | `privacy` | Redaction of account identifiers whenever an agent may read seatwise's output |

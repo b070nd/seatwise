@@ -1,6 +1,7 @@
 //! seatwise: keep several Claude Code subscriptions ("seats") out of each other's work, each with its own
 //! config folder, organization and project folders, and optional hooks that guard the folders.
 
+pub mod catalog;
 pub mod claude;
 pub mod config;
 pub mod desktop;
