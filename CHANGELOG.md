@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- A seat whose desktop app already runs in the app's default data folder (signed in there before seatwise, or started
+  with the seat's `CLAUDE_CONFIG_DIR` by hand) is recognised: `seat init` writes `user_data_dir = "default"` for it,
+  `seat doctor` suggests it and `seat doctor --fix` adds it, `seat desktop` lists the instance under that seat, and
+  `seat desktop <seat>` no longer starts a second, signed-out instance next to it.
+
+### Changed
+- `.gitignore` also keeps local config copies, config backups and `.env.local` out of the repository.
+
 ## [0.2.0] - 2026-11-22
 
 ### Fixed

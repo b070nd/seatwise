@@ -1214,6 +1214,68 @@ fn desktop_starts_each_seat_once_with_its_own_data_folder_and_environment() {
 }
 
 #[test]
+fn a_seat_whose_desktop_runs_in_the_default_folder_is_told_to_keep_it() {
+    // Set up before seatwise (or by hand): the app runs in its default data folder, with the seat's config folder.
+    let e = setup_with("");
+    let ps = e.home.join("ps.txt");
+    fs::write(
+        &ps,
+        format!(
+            "300\tSun Nov 22 23:02:10 2026\t/Applications/Claude.app/Contents/MacOS/Claude\tPATH=/usr/bin CLAUDE_CONFIG_DIR={}\n",
+            e.home.join(".seat-a").display()
+        ),
+    )
+    .unwrap();
+    let run = |args: &[&str]| {
+        e.seat("", args)
+            .env("SEATWISE_OPEN", &e.fake_claude)
+            .env("SEATWISE_DESKTOP_PS", &ps)
+            .output()
+            .unwrap()
+    };
+
+    let t = ok(&run(&["desktop"]));
+    assert!(
+        t.contains("seat a ") && t.contains("user_data_dir = \"default\""),
+        "{t}"
+    );
+
+    // Never a second, signed-out instance next to it.
+    let t = ok(&run(&["desktop", "a"]));
+    assert!(
+        t.contains("already runs in the app's default data folder"),
+        "{t}"
+    );
+    assert!(!t.contains("ARGS="), "{t}");
+
+    let t = text(&run(&["doctor"]));
+    assert!(
+        t.contains("seat 'a' desktop runs in the app's default data folder")
+            && t.contains("[--fix]"),
+        "{t}"
+    );
+    assert!(
+        !t.contains("runs without a seat") && !t.contains("restart the"),
+        "{t}"
+    );
+
+    text(&run(&["doctor", "--fix"]));
+    let cfg = read(&e.config);
+    assert!(
+        cfg.contains("[seat.desktop]\nuser_data_dir = \"default\""),
+        "{cfg}"
+    );
+    assert!(
+        cfg.find("[seat.desktop]") < cfg.find("name = \"b\""),
+        "the table sits under seat a: {cfg}"
+    );
+    let t = text(&run(&["doctor"]));
+    assert!(!t.contains("default data folder"), "fixed: {t}");
+    let t = ok(&run(&["desktop", "a"]));
+    assert!(t.contains("already running (pid 300"), "{t}");
+}
+
+#[test]
 fn shell_init_replaces_aliases_of_the_same_name() {
     // Old setups often have `alias claude-work=...`: re-sourcing shell-init over them must still define functions.
     // Unix only: on Windows `bash` may be the WSL launcher, which can't read this test's Windows paths.

@@ -17,6 +17,9 @@ pub struct Found {
     pub folders: Vec<PathBuf>,
     /// A Codex home (`.codex*`), not a Claude Code folder.
     pub codex: bool,
+    /// The Claude desktop app runs in its default data folder for this config folder, so that folder holds this
+    /// seat's desktop login.
+    pub desktop_default: bool,
 }
 
 fn is_codex(dir: &Path) -> bool {
@@ -86,6 +89,7 @@ pub fn discover() -> Vec<Found> {
     let mut seen = HashSet::new();
     let mut names = HashSet::new();
     let mut out = Vec::new();
+    let desktop = crate::desktop::running_default_app();
     for dir in dirs {
         if !seen.insert(key_string(&dir)) || !looks_like_config(&dir) {
             continue;
@@ -108,6 +112,7 @@ pub fn discover() -> Vec<Found> {
                 claude::read_account_from(&state)
             },
             codex,
+            desktop_default: !codex && crate::desktop::on_default_data_dir(&desktop, &dir),
             config_dir: dir,
         });
     }
@@ -321,6 +326,16 @@ pub fn propose(found: &[Found]) -> String {
                 )
             }
         }
+        // Only one seat can have the default data folder.
+        if f.desktop_default
+            && found
+                .iter()
+                .find(|g| g.desktop_default)
+                .is_some_and(|g| g.name == f.name)
+        {
+            out += "# The desktop app runs in its default data folder for this seat: keep its desktop login there.\n\
+                    [seat.desktop]\nuser_data_dir = \"default\"\n";
+        }
         if legacy.contains(f.name.as_str()) {
             let block: String = out[start..]
                 .lines()
@@ -426,6 +441,7 @@ mod tests {
                 }),
                 folders: vec![shared.clone()],
                 codex: false,
+                desktop_default: true,
             },
             Found {
                 name: "home".into(),
@@ -433,12 +449,22 @@ mod tests {
                 account: None,
                 folders: vec![shared, mine],
                 codex: false,
+                desktop_default: true,
             },
         ];
         let text = propose(&found);
         let cfg: crate::config::Config = toml::from_str(&text).unwrap();
         cfg.validate().unwrap();
         assert_eq!(cfg.seats.len(), 2);
+        assert_eq!(
+            crate::desktop::data_dir(cfg.seat("work").unwrap()),
+            None,
+            "the seat whose desktop runs in the default folder keeps it: {text}"
+        );
+        assert!(
+            crate::desktop::data_dir(cfg.seat("home").unwrap()).is_some(),
+            "only one seat gets the default folder"
+        );
         assert_eq!(
             cfg.seat("work").unwrap().email.as_deref(),
             Some("me@corp.example")

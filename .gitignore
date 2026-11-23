@@ -10,9 +10,14 @@
 /reference/
 /.claude/
 
-# Live configuration never belongs here: only config.example.toml is tracked.
+# Live configuration never belongs here: only config.example.toml is tracked. Local copies, backups and env
+# files hold account identifiers.
 /config.toml
+config.local.toml
+*.toml.bak*
+*.bak-*
 .env
+.env.local
 .env.*
 
 .DS_Store

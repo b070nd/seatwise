@@ -29,6 +29,8 @@ pub enum Fix {
     ReinstallShim,
     /// Remove folder entries whose folder doesn't exist.
     UnlinkMissing,
+    /// Give the seat the desktop app's default data folder (`[seat.desktop] user_data_dir = "default"`).
+    DesktopDefaultFolder(String),
 }
 
 fn finding(level: Level, message: impl Into<String>) -> Finding {
@@ -253,8 +255,16 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
             ));
         }
     }
-    for m in crate::desktop::findings(cfg, exe) {
-        out.push(finding(Level::Warn, m));
+    let desktop = crate::desktop::findings(cfg, exe);
+    for (n, m) in desktop.warnings.into_iter().enumerate() {
+        out.push(Finding {
+            level: Level::Warn,
+            message: m,
+            fix: match &desktop.default_folder_seat {
+                Some(seat) if n == 0 => Some(Fix::DesktopDefaultFolder(seat.clone())),
+                _ => None,
+            },
+        });
     }
     if exe.to_string_lossy().contains(' ') && cfg.seats.iter().any(|s| s.link() != Link::System) {
         out.push(finding(
@@ -425,6 +435,14 @@ pub fn fix(cfg: &Config, exe: &Path, findings: &[Finding]) -> anyhow::Result<Vec
                         .into_iter()
                         .map(|p| format!("{p}: entry removed (folder doesn't exist)")),
                 );
+            }
+            Some(Fix::DesktopDefaultFolder(name)) => {
+                let mut file = crate::edit::ConfigFile::open()?;
+                file.set_seat_desktop(name, "user_data_dir", "default")?;
+                file.save()?;
+                done.push(format!(
+                    "seat '{name}': desktop uses the app's default data folder (user_data_dir = \"default\")"
+                ));
             }
             None => {}
         }

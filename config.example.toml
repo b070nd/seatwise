@@ -112,7 +112,8 @@ link = ["firefox", "-P", "work", "{url}"]
 # The desktop app on this seat (macOS): `seat desktop work`, or claude-desktop-work. Both keys are optional; keep
 # this table last in the seat, since the keys after it belong to it.
 # [seat.desktop]
-# user_data_dir = "default"          # the app's usual data folder; default: ~/Library/Application Support/Claude-<seat>
+# user_data_dir = "default"          # the app's usual data folder, where an existing desktop login is (one seat
+#                                    # only; `seat doctor --fix` sets it); default: ~/Library/Application Support/Claude-<seat>
 # app = "/Applications/Claude.app"   # the default
 
 [[seat]]

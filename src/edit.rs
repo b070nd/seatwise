@@ -119,6 +119,26 @@ impl ConfigFile {
         Ok(())
     }
 
+    /// Set a field of a seat's `[seat.desktop]` table, creating the table after the seat's own keys.
+    pub fn set_seat_desktop(&mut self, seat: &str, key: &str, v: &str) -> Result<()> {
+        let t = self
+            .seat_table(seat)
+            .with_context(|| format!("unknown seat '{seat}'"))?;
+        if !t.contains_key("desktop") {
+            t.insert("desktop", Item::Table(Table::new()));
+        }
+        let d = match &mut t["desktop"] {
+            Item::Table(d) => d,
+            Item::Value(toml_edit::Value::InlineTable(d)) => {
+                d.insert(key, v.into());
+                return Ok(());
+            }
+            _ => bail!("seat '{seat}': `desktop` in the config is not a table"),
+        };
+        d[key] = value(v);
+        Ok(())
+    }
+
     /// Record the account (and plan) a seat must be signed into. `None` fields are left as they are.
     pub fn pin(
         &mut self,

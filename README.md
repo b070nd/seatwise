@@ -229,6 +229,12 @@ Every seat runs the same installed `/Applications/Claude.app` (no copies), with 
 `CLAUDE_CONFIG_DIR`, `SEATWISE_SEAT` and `BROWSER`, so its Code sessions get the seat's hooks, folders and links. A
 seat that already uses the app's usual folder keeps it with `user_data_dir = "default"` in `[seat.desktop]`.
 
+**Already signed in to the desktop app?** Its login lives in the app's usual folder, not in `Claude-<seat>`. When the
+app runs there for one of your seats (started with that seat's `CLAUDE_CONFIG_DIR`, from the Dock for a seat in
+`~/.claude`, or by an older setup), `seat init` writes `user_data_dir = "default"` for that seat, `seat doctor`
+suggests it (`seat doctor --fix` adds it), and `seat desktop <seat>` won't start a second, signed-out instance next to
+it. Only one seat can have the usual folder.
+
 - **One instance per seat.** If the seat's instance already runs, `seat desktop` says so instead of starting a second
   one on the same data folder.
 - **Signing in while other instances run.** A Google sign-in answers through a `claude://` link, which macOS hands to

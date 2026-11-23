@@ -252,8 +252,79 @@ pub fn running(cfg: &Config) -> Vec<Instance> {
     parse(&raw_processes(&apps), &apps)
 }
 
+/// The desktop instances of the default app running now, before there is a config (`seat init`).
+pub fn running_default_app() -> Vec<Instance> {
+    let apps = [PathBuf::from(DEFAULT_APP)];
+    parse(&raw_processes(&apps), &apps)
+}
+
 fn same_dir(a: &Path, b: &Path) -> bool {
     crate::folders::key_string(a) == crate::folders::key_string(b)
+}
+
+/// The Claude Code config folder an instance's sessions use (`~/.claude` without `CLAUDE_CONFIG_DIR`).
+fn instance_config_dir(i: &Instance) -> PathBuf {
+    i.config_dir
+        .as_deref()
+        .map(crate::paths::expand)
+        .unwrap_or_else(|| crate::paths::home().join(".claude"))
+}
+
+/// An instance in the app's default data folder whose sessions use `config_dir` (started from the Dock for
+/// `~/.claude`, or with `CLAUDE_CONFIG_DIR` set by hand or by a setup from before seatwise): that folder holds the
+/// desktop login of the seat living in `config_dir`.
+pub fn on_default_data_dir(instances: &[Instance], config_dir: &Path) -> bool {
+    instances
+        .iter()
+        .any(|i| i.data_dir.is_none() && same_dir(&instance_config_dir(i), config_dir))
+}
+
+/// Whether instance `i` runs in the app's default data folder for seat `seat`: started for it by name, with its
+/// config folder set by hand, or from the Dock for a seat living in `~/.claude`.
+fn runs_default_for(cfg: &Config, i: &Instance, seat: &Seat) -> bool {
+    i.data_dir.is_none()
+        && match i.seat.as_deref() {
+            Some(name) => cfg.seat(name).is_some_and(|x| x.name == seat.name),
+            None => same_dir(&instance_config_dir(i), &seat.config_dir()),
+        }
+}
+
+/// The seat whose desktop app runs in the app's default data folder while its config gives it a folder of its own:
+/// `user_data_dir = "default"` keeps that folder's desktop login. `None` when a seat already claims the default
+/// folder, or more than one seat would.
+pub fn default_folder_seat(cfg: &Config, running: &[Instance]) -> Option<String> {
+    let claude = || {
+        cfg.seats
+            .iter()
+            .filter(|s| s.agent == crate::config::Agent::Claude)
+    };
+    if claude().any(|s| data_dir(s).is_none()) {
+        return None;
+    }
+    let explicit = |s: &Seat| {
+        s.desktop
+            .as_ref()
+            .is_some_and(|d| d.user_data_dir.is_some())
+    };
+    let mut seats = claude()
+        .filter(|s| !explicit(s))
+        .filter(|s| running.iter().any(|i| runs_default_for(cfg, i, s)));
+    let seat = seats.next()?;
+    seats.next().is_none().then(|| seat.name.clone())
+}
+
+fn default_folder_hint(name: &str) -> String {
+    format!(
+        "add `user_data_dir = \"default\"` under [seat.desktop] for seat '{name}' to keep that login \
+         (`seat doctor --fix` adds it)"
+    )
+}
+
+/// Whether instance `i` is the one that makes `adopt` the default-folder seat.
+fn adopted(cfg: &Config, i: &Instance, adopt: Option<&str>) -> bool {
+    adopt
+        .and_then(|name| cfg.seat(name))
+        .is_some_and(|s| runs_default_for(cfg, i, s))
 }
 
 /// Start a seat's desktop app, unless it already runs. Returns what happened, one line per point.
@@ -285,6 +356,14 @@ pub fn open(cfg: &Config, seat: &Seat, exe: &Path) -> Result<Vec<String>> {
     }
     let data = data_dir_or_default(seat);
     let running = running(cfg);
+    if default_folder_seat(cfg, &running).as_deref() == Some(seat.name.as_str()) {
+        return Ok(vec![format!(
+            "seat '{}' desktop already runs in the app's default data folder; not starting a second one with a \
+             new, signed-out folder. {}",
+            seat.name,
+            default_folder_hint(&seat.name)
+        )]);
+    }
     if let Some(i) = running
         .iter()
         .find(|i| same_dir(&i.data_dir_or_default(), &data))
@@ -371,9 +450,23 @@ fn stale(cfg: &Config, i: &Instance, exe: &Path) -> Option<String> {
 }
 
 /// Problems with the running instances, for `seat doctor`.
-pub fn findings(cfg: &Config, exe: &Path) -> Vec<String> {
+pub struct Findings {
+    pub warnings: Vec<String>,
+    /// A seat that should get `user_data_dir = "default"` (see [`default_folder_seat`]); its warning is the first.
+    pub default_folder_seat: Option<String>,
+}
+
+pub fn findings(cfg: &Config, exe: &Path) -> Findings {
     let running = running(cfg);
+    let adopt = default_folder_seat(cfg, &running);
     let mut out = Vec::new();
+    if let Some(name) = &adopt {
+        out.push(format!(
+            "seat '{name}' desktop runs in the app's default data folder, where its desktop login is, but its \
+             config gives it a folder of its own: {}",
+            default_folder_hint(name)
+        ));
+    }
     for (n, i) in running.iter().enumerate() {
         if running[..n]
             .iter()
@@ -383,6 +476,9 @@ pub fn findings(cfg: &Config, exe: &Path) -> Vec<String> {
                 "two Claude desktop instances share one data folder ({}): quit one; `seat desktop` never starts a second",
                 i.label()
             ));
+        }
+        if adopted(cfg, i, adopt.as_deref()) {
+            continue;
         }
         match i.seat.as_deref() {
             None if i.config_dir.is_none() => out.push(format!(
@@ -405,7 +501,10 @@ pub fn findings(cfg: &Config, exe: &Path) -> Vec<String> {
             }
         }
     }
-    out
+    Findings {
+        warnings: out,
+        default_folder_seat: adopt,
+    }
 }
 
 /// `seat desktop` without a seat: the running instances.
@@ -414,17 +513,27 @@ pub fn status(cfg: &Config, exe: &Path) -> Vec<String> {
     if running.is_empty() {
         return vec!["no Claude desktop instance is running".into()];
     }
+    let adopt = default_folder_seat(cfg, &running);
     let mut out: Vec<String> = running
         .iter()
         .map(|i| {
+            let mine = adopted(cfg, i, adopt.as_deref());
             let who = match (&i.seat, &i.config_dir) {
                 (Some(s), _) => format!("seat {s}"),
+                (None, Some(_)) if mine => format!("seat {}", adopt.as_deref().unwrap_or_default()),
                 (None, Some(_)) => "no seat (CLAUDE_CONFIG_DIR set by hand)".into(),
                 (None, None) => "no seat".into(),
             };
-            let note = stale(cfg, i, exe)
-                .map(|d| format!("  [restart: {d}]"))
-                .unwrap_or_default();
+            let note = if mine {
+                format!(
+                    "  [{}]",
+                    default_folder_hint(adopt.as_deref().unwrap_or_default())
+                )
+            } else {
+                stale(cfg, i, exe)
+                    .map(|d| format!("  [restart: {d}]"))
+                    .unwrap_or_default()
+            };
             format!("{who:<14} {}{note}", i.label())
         })
         .collect();
