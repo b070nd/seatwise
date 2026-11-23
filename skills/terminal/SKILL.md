@@ -1,5 +1,5 @@
 ---
-name: seat-terminal
+name: {{name}}
 description: Open a terminal running the CLI (Claude Code or Codex) for the current project on this seat, optionally with a session profile such as experimental settings. Use when the user wants to continue in a terminal, run the CLI next to the desktop app, or try experimental CLI features for the active project.
 ---
 

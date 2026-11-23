@@ -1,5 +1,5 @@
 ---
-name: seat-home
+name: {{name}}
 description: Work across all of this seat's repos from its home repo, using the pointers in the home repo's AGENTS.md. Use when a task spans several repos, when the user mentions another of their projects by name, or when a repo listed in "Other repos" is missing locally.
 ---
 

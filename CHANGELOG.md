@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- The seatwise skills are now the `b070nd` plugin on Claude seats: `/b070nd:hybrid`, `/b070nd:terminal`,
+  `/b070nd:status` and `/b070nd:home`. `seat skills install` writes it into a marketplace in the seat's config folder,
+  enables it in the seat's settings.json, registers it with `claude plugin install`, and removes the old loose `seat-*`
+  skills. `seat doctor` (with `--fix`), `seat hybrid` and the seat card in `seat show` and `seat tui` report whether
+  a seat's skills are current. Codex seats keep loose `seat-*` skills.
+
 ### Added
 - The settings catalog: every Claude Code setting and environment variable (243 settings, 401 variables, from Claude
   Code's docs) with its type, allowed values, where Claude Code honors it, and whether it is experimental, plus the

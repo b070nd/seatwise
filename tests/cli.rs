@@ -1006,22 +1006,34 @@ fn skills_install_into_the_seat_with_the_binary_path() {
     let e = setup();
     let out = e.seat("", &["skills", "install", "a"]).output().unwrap();
     assert!(out.status.success(), "{}", text(&out));
-    let skill = read(&e.home.join(".seat-a/skills/seat-terminal/SKILL.md"));
-    assert!(skill.starts_with("---\nname: seat-terminal"), "{skill}");
+    let out = text(&out);
+    assert!(out.contains("/b070nd:hybrid"), "{out}");
+    let plugin = e.home.join(".seat-a/seatwise-plugins");
+    let skill = read(&plugin.join("plugins/b070nd/skills/terminal/SKILL.md"));
+    assert!(skill.starts_with("---\nname: terminal"), "{skill}");
+    assert!(plugin.join(".claude-plugin/marketplace.json").is_file());
+    let settings = read(&e.home.join(".seat-a/settings.json"));
+    assert!(settings.contains("\"b070nd@seatwise\": true"), "{settings}");
+    // Registered through `claude plugin`, in the seat's own folder.
+    assert!(
+        e.home
+            .join(".seat-a/plugins/installed_plugins.json")
+            .is_file()
+    );
     assert!(
         !skill.contains("{{seat}}") && skill.contains(env!("CARGO_BIN_EXE_seat")),
         "{skill}"
     );
     assert!(
-        !e.home.join(".seat-b/skills").exists(),
+        !e.home.join(".seat-b/seatwise-plugins").exists(),
         "only the seat asked for"
     );
     let t = text(
-        &e.seat("", &["skills", "show", "seat-home"])
+        &e.seat("", &["skills", "show", "/b070nd:home"])
             .output()
             .unwrap(),
     );
-    assert!(t.contains("name: seat-home"), "{t}");
+    assert!(t.contains("name: home"), "{t}");
 }
 
 #[test]
@@ -1775,7 +1787,11 @@ fn hybrid_checks_then_sets_up_the_project_and_the_terminal() {
         "{t}"
     );
     assert!(t.contains("light"), "{t}");
-    assert!(e.home.join(".seat-a/skills/seat-hybrid/SKILL.md").is_file());
+    assert!(
+        e.home
+            .join(".seat-a/seatwise-plugins/plugins/b070nd/skills/hybrid/SKILL.md")
+            .is_file()
+    );
     let t = ok(&e
         .seat(
             "",

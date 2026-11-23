@@ -1,5 +1,5 @@
 ---
-name: seat-status
+name: {{name}}
 description: Show which seat (account) this session runs on, its plan, how much of its 5-hour and weekly limits is used, and the usage profile that fits. Use when the user asks which account they're on, how much usage is left, whether to switch to a lighter model, or why something is blocked by seatwise.
 ---
 

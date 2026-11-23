@@ -129,7 +129,7 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat desktop [seat]` | Start the desktop app on a seat (macOS), unless it already runs; without a seat, the running instances |
 | `seat term [--seat s] [--with p] [--dir d] [--print]` | New terminal window running the seat in a project; from inside a session it takes that session's seat and project |
 | `seat hybrid [--check] [--link] [--preset p] [--with p]` | Set up the command line for this project next to the desktop app, then open a terminal there |
-| `seat skills install [seat]` / `seat skills show <name>` | Install the seatwise skills (`seat-hybrid`, `seat-terminal`, `seat-status`, `seat-home`) into seats |
+| `seat skills install [seat]` / `seat skills show <name>` | Install the seatwise skills into seats: the `b070nd` plugin on Claude seats (`/b070nd:hybrid`, `/b070nd:terminal`, `/b070nd:status`, `/b070nd:home`) |
 | `seat home init <seat> [path]` / `seat home sync` | Create or adopt a seat's home repo; refresh its pointers. `seat run --home <seat>` starts there |
 | `seat tui` | Seat and project cards, a preset editor, and switches for agents, groups and general options; `w` writes, keeping comments |
 | `seat enable/disable <target>` | A seat, `agent:claude\|codex`, `preset:<name>`, `group:<name>` or `sentinel` |
@@ -250,10 +250,10 @@ Scheduler task) and shows findings as notifications; `--dry-run` prints what it 
 ## Desktop app, terminal and home repos
 
 In the desktop app, chat as usual; when a task needs the CLI (a long-running command, an experimental feature, your own
-shell), ask for a terminal. The `seat-terminal` skill runs `seat term`, which opens one on the same seat and project:
+shell), ask for a terminal. `/b070nd:terminal` runs `seat term`, which opens one on the same seat and project:
 
 ```sh
-seat skills install            # every seat: seat-hybrid, seat-terminal, seat-status, seat-home
+seat skills install            # every seat: /b070nd:hybrid, /b070nd:terminal, /b070nd:status, /b070nd:home
 seat hybrid --check            # what is set up for this project, changing nothing
 seat hybrid --link --preset build --with experimental
 seat term --with experimental  # just the terminal, from any shell
@@ -262,8 +262,16 @@ seat term --with experimental  # just the terminal, from any shell
 `seat hybrid` sets up the command-line side in one step, then opens the terminal. It makes sure the project folder
 belongs to the session's seat (`--link` assigns an unassigned one), installs the seat's skills, gives the project a
 use-case preset (`--preset`), and opens a terminal with session-only settings (`--with`). It refuses a folder that
-belongs to another seat. In the desktop app, ask for "hybrid mode" or "the CLI for this project"; the `seat-hybrid`
-skill runs `--check` first and asks before assigning folders or presets.
+belongs to another seat. In the desktop app, run `/b070nd:hybrid` or ask for "hybrid mode" or "the CLI for this
+project"; the skill runs `--check` first and asks before assigning folders or presets.
+
+On Claude seats the skills come as a plugin named `b070nd`, so they share one namespace and stay out of the way of
+your own skills. It lives in a small marketplace in the seat's config folder (`seatwise-plugins/`), is enabled in the
+seat's settings.json (`extraKnownMarketplaces` and `enabledPlugins`) and registered with `claude plugin install` in
+that seat. Claude Code reads it in place: after an upgrade, `seat skills install` updates it for the next session, or
+`/reload-plugins` in a running one. The loose `seat-*` skills of seatwise 0.3 and earlier are removed (folders you
+changed are left alone), and `seat doctor` notices outdated skills. Codex has no plugins: its seats keep loose
+`seat-hybrid`, `seat-terminal`, `seat-status` and `seat-home` skills.
 
 `seat term` takes the seat from the session's config folder (or the org the desktop app exports, when exactly one seat
 is pinned to it) and the project from `CLAUDE_PROJECT_DIR`. `terminal.profile` sets the profile it uses by default.

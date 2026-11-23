@@ -235,6 +235,25 @@ pub fn seat(
             },
         ),
         fact("config", paths::contract(&seat.config_dir()), Health::Good),
+        {
+            let have = crate::skills::state(seat, exe);
+            let names = crate::skills::SKILLS
+                .iter()
+                .map(|(n, _)| crate::skills::invocation(seat.agent, n))
+                .collect::<Vec<_>>()
+                .join(" ");
+            if have.current() {
+                fact("skills", names, Health::Good)
+            } else if have.outdated.len() >= crate::skills::SKILLS.len() && have.legacy.is_empty() {
+                fact(
+                    "skills",
+                    format!("not installed (`seat skills install {}`)", seat.name),
+                    Health::Off,
+                )
+            } else {
+                fact("skills", have.summary(), Health::Notice)
+            }
+        },
     ];
     if seat.agent == Agent::Claude && cfg!(target_os = "macos") {
         let mine = desktop

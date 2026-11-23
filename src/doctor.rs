@@ -31,6 +31,8 @@ pub enum Fix {
     UnlinkMissing,
     /// Give the seat the desktop app's default data folder (`[seat.desktop] user_data_dir = "default"`).
     DesktopDefaultFolder(String),
+    /// Bring the seat's seatwise skills (the `b070nd` plugin on Claude seats) up to date.
+    Skills(String),
 }
 
 fn finding(level: Level, message: impl Into<String>) -> Finding {
@@ -127,6 +129,17 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
                 },
                 message,
                 fix: Some(Fix::Hooks(n.clone())),
+            });
+        }
+        let skills = crate::skills::state(seat, exe);
+        let has_some = !skills.legacy.is_empty()
+            || (skills.listed && seat.agent == Agent::Claude)
+            || crate::skills::target(seat).exists();
+        if has_some && !skills.current() {
+            out.push(Finding {
+                level: Level::Info,
+                message: format!("seat '{n}': seatwise skills {}", skills.summary()),
+                fix: Some(Fix::Skills(n.clone())),
             });
         }
         if let Some(a) = &st.account {
@@ -485,6 +498,14 @@ pub fn fix(cfg: &Config, exe: &Path, findings: &[Finding]) -> anyhow::Result<Vec
                 file.save()?;
                 done.push(format!(
                     "seat '{name}': desktop uses the app's default data folder (user_data_dir = \"default\")"
+                ));
+            }
+            Some(Fix::Skills(name)) => {
+                let seat = cfg.seat(name).expect("validated config");
+                let installed = crate::skills::install(cfg, seat, exe)?;
+                done.push(format!(
+                    "seat '{name}': skills installed{}",
+                    crate::hybrid::install_note(&installed)
                 ));
             }
             None => {}

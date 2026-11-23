@@ -111,28 +111,17 @@ pub fn run(exe: &Path, opts: &Options) -> Result<Vec<String>> {
     }
 
     // 2. The seat has the seatwise skills.
-    let target = skills::target(&seat);
-    let missing: Vec<&str> = skills::SKILLS
-        .iter()
-        .filter(|(name, text)| {
-            std::fs::read_to_string(target.join(name).join("SKILL.md")).ok()
-                != Some(skills::render(text, exe))
-        })
-        .map(|(name, _)| *name)
-        .collect();
-    if missing.is_empty() {
+    let have = skills::state(&seat, exe);
+    if have.current() {
         report.push("skills   up to date".into());
     } else if opts.check {
-        report.push(format!(
-            "skills   missing or outdated: {}",
-            missing.join(", ")
-        ));
+        report.push(format!("skills   {}", have.summary()));
     } else {
-        let dir = skills::install(&seat, exe)?;
+        let done = skills::install(&cfg, &seat, exe)?;
         report.push(format!(
-            "skills   installed in {} ({})",
-            paths::contract(&dir),
-            missing.join(", ")
+            "skills   installed in {}{}",
+            paths::contract(&done.dir),
+            install_note(&done)
         ));
     }
 
@@ -214,4 +203,18 @@ pub fn run(exe: &Path, opts: &Options) -> Result<Vec<String>> {
         report.push(format!("terminal opened on {n}{with_note}"));
     }
     Ok(report)
+}
+
+/// What to add after "installed in <dir>": registration and removed old skills.
+pub fn install_note(done: &skills::Installed) -> String {
+    let mut out = String::new();
+    if !done.removed.is_empty() {
+        out += &format!("; removed {} old loose skill(s)", done.removed.len());
+    }
+    match &done.note {
+        Some(why) => out += &format!("; the plugin registers when the next session starts ({why})"),
+        None if !done.registered => out += "; the plugin registers when the next session starts",
+        None => {}
+    }
+    out
 }

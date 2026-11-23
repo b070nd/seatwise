@@ -447,6 +447,18 @@ fn main() -> ExitCode {
         let key = std::env::var_os("ANTHROPIC_API_KEY").is_some();
         println!("KEY={}", if key { "set" } else { "none" });
         println!("ARGS={}", argv[1..].join(" "));
+        // `claude plugin install <id>` records the plugin the way Claude Code does.
+        if argv.get(1..3).is_some_and(|a| a == ["plugin", "install"]) {
+            let dir = PathBuf::from(var("CLAUDE_CONFIG_DIR")).join("plugins");
+            let _ = std::fs::create_dir_all(&dir);
+            let _ = std::fs::write(
+                dir.join("installed_plugins.json"),
+                format!(
+                    "{{\"plugins\": {{\"{}\": [{{\"scope\": \"user\"}}]}}}}",
+                    argv[3]
+                ),
+            );
+        }
         return ExitCode::SUCCESS;
     }
     // Claude Code opens links as `$BROWSER <url>`.
@@ -866,21 +878,41 @@ fn run(cmd: Cmd) -> Result<i32> {
         Cmd::Skills(SkillsCmd::Install { seats }) => {
             let cfg = Config::load()?;
             for seat in pick_seats(&cfg, &seats)? {
-                let dir = seatwise::skills::install(seat, &exe)?;
+                let done = seatwise::skills::install(&cfg, seat, &exe)?;
                 println!(
-                    "seat '{}': skills installed in {}",
+                    "seat '{}': skills installed in {}{}",
                     seat.name,
-                    dir.display()
+                    paths::contract(&done.dir),
+                    seatwise::hybrid::install_note(&done)
                 );
+                if seat.agent == seatwise::config::Agent::Claude {
+                    println!(
+                        "  {} (/reload-plugins in a running session)",
+                        seatwise::skills::SKILLS
+                            .iter()
+                            .map(|(n, _)| seatwise::skills::invocation(seat.agent, n))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    );
+                }
             }
             Ok(0)
         }
         Cmd::Skills(SkillsCmd::Show { name }) => {
-            let (_, text) = seatwise::skills::SKILLS
+            let name = name
+                .trim_start_matches('/')
+                .trim_start_matches("b070nd:")
+                .trim_start_matches("seat-");
+            let (n, text) = seatwise::skills::SKILLS
                 .iter()
                 .find(|(n, _)| *n == name)
-                .with_context(|| format!("unknown skill '{name}'"))?;
-            print!("{}", seatwise::skills::render(text, &exe));
+                .with_context(|| {
+                    format!("unknown skill '{name}' (hybrid, terminal, status, home)")
+                })?;
+            print!(
+                "{}",
+                seatwise::skills::render(seatwise::config::Agent::Claude, n, text, &exe)
+            );
             Ok(0)
         }
         Cmd::Init { print, force } => {

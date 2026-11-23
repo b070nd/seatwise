@@ -1,5 +1,5 @@
 ---
-name: seat-hybrid
+name: {{name}}
 description: Set up the command-line workflow for the current project next to the desktop app, on the same seat (account), then open a terminal there. Checks that the project belongs to this seat, installs the seat's skills, optionally sets a use-case preset (explore, build, review, quick) and session settings such as experimental features. Use when the user wants to start hybrid work, set up the CLI or terminal for this project, or work in the terminal alongside the desktop app.
 ---
 
