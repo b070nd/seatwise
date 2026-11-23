@@ -75,7 +75,7 @@ Enforcement is off until you choose a level, so seatwise never blocks anything y
 
 Any of these gives you the `seat` binary:
 
-- **From crates.io** (released versions):
+- **From crates.io** (released versions; needs Rust 1.95 or newer):
 
   ```sh
   cargo install seatwise --locked

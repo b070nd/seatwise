@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- seatwise declares the oldest Rust it builds with: 1.95 (`rust-version`), and CI tests it there. Dependencies updated.
+
 ## [0.4.1] - 2026-11-23
 
 ### Changed
