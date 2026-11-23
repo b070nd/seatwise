@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-23
+
 ### Added
 - A seat whose desktop app already runs in the app's default data folder (signed in there before seatwise, or started
   with the seat's `CLAUDE_CONFIG_DIR` by hand) is recognised: `seat init` writes `user_data_dir = "default"` for it,
@@ -88,6 +90,7 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/b070nd/seatwise/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/b070nd/seatwise/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/b070nd/seatwise/releases/tag/v0.1.0
