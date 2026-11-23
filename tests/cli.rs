@@ -1744,6 +1744,91 @@ fn identifiers_are_hidden_from_agents_and_pipes() {
 }
 
 #[test]
+fn the_hybrid_plan_lists_only_open_choices_and_valid_session_settings() {
+    let e = setup_with("[profile.broken]\npermissions = { defaultMode = \"sometimes\" }\n");
+    let t = ok(&e
+        .seat(
+            "",
+            &["hybrid", "--json", "--seat", "a", "--dir", "elsewhere"],
+        )
+        .output()
+        .unwrap());
+    let plan: serde_json::Value = serde_json::from_str(&t).expect(&t);
+    let steps: Vec<&str> = plan["choices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["step"].as_str().unwrap())
+        .collect();
+    assert_eq!(steps, ["owner", "preset", "session"], "{t}");
+    let session = &plan["choices"][2]["options"];
+    let experimental = session
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|o| o["value"] == "experimental")
+        .expect("the experimental profile is offered");
+    assert_eq!(experimental["flag"], "--with experimental");
+    assert_eq!(experimental["experimental"], true);
+    assert!(
+        !session.to_string().contains("broken"),
+        "a profile Claude Code would reject is not offered: {t}"
+    );
+    assert!(
+        !read(&e.config).contains("elsewhere"),
+        "--json changes nothing"
+    );
+
+    // Chosen: nothing left open for those steps.
+    let t = ok(&e
+        .seat(
+            "",
+            &[
+                "hybrid",
+                "--json",
+                "--seat",
+                "a",
+                "--dir",
+                "elsewhere",
+                "--link",
+                "--preset",
+                "build",
+                "--with",
+                "experimental",
+            ],
+        )
+        .output()
+        .unwrap());
+    let plan: serde_json::Value = serde_json::from_str(&t).expect(&t);
+    assert_eq!(plan["choices"], serde_json::json!([]), "{t}");
+    assert!(
+        plan["terminal"].as_str().unwrap().contains("experimental"),
+        "{t}"
+    );
+
+    // Asked for by name, a bad profile is refused before anything changes.
+    let out = e
+        .seat(
+            "",
+            &[
+                "hybrid",
+                "--seat",
+                "a",
+                "--dir",
+                "elsewhere",
+                "--link",
+                "--with",
+                "broken",
+            ],
+        )
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(text(&out).contains("defaultMode"), "{}", text(&out));
+    assert!(!read(&e.config).contains("elsewhere"));
+}
+
+#[test]
 fn hybrid_checks_then_sets_up_the_project_and_the_terminal() {
     let e = setup_with("");
     let t = ok(&e
@@ -1758,7 +1843,7 @@ fn hybrid_checks_then_sets_up_the_project_and_the_terminal() {
         "{t}"
     );
     assert!(
-        !e.home.join(".seat-a/skills").exists(),
+        !e.home.join(".seat-a/seatwise-plugins").exists(),
         "--check changes nothing"
     );
     assert!(!read(&e.config).contains("elsewhere"));

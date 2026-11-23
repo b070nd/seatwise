@@ -117,6 +117,9 @@ enum Cmd {
         /// Print the terminal's command instead of opening it
         #[arg(long)]
         print: bool,
+        /// Print the plan as JSON (steps, and the open choices with their flags); changes nothing
+        #[arg(long)]
+        json: bool,
     },
     /// The seat's home repo: one repo with its skills, AGENTS.md and pointers to its other repos
     #[command(subcommand)]
@@ -1352,6 +1355,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             check,
             no_open,
             print,
+            json,
         } => {
             let opts = seatwise::hybrid::Options {
                 seat,
@@ -1363,6 +1367,12 @@ fn run(cmd: Cmd) -> Result<i32> {
                 no_open,
                 print,
             };
+            if json {
+                let cfg = Config::load()?;
+                let plan = seatwise::hybrid::plan(&cfg, &exe, &opts)?;
+                println!("{}", serde_json::to_string_pretty(&plan)?);
+                return Ok(0);
+            }
             for line in seatwise::hybrid::run(&exe, &opts)? {
                 println!("{line}");
             }

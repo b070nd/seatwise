@@ -128,7 +128,7 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat run --with <profile> <seat>` | Start with a usage profile for this session only (passed as `--settings`) |
 | `seat desktop [seat]` | Start the desktop app on a seat (macOS), unless it already runs; without a seat, the running instances |
 | `seat term [--seat s] [--with p] [--dir d] [--print]` | New terminal window running the seat in a project; from inside a session it takes that session's seat and project |
-| `seat hybrid [--check] [--link] [--preset p] [--with p]` | Set up the command line for this project next to the desktop app, then open a terminal there |
+| `seat hybrid [--check] [--json] [--link] [--preset p] [--with p]` | Set up the command line for this project next to the desktop app, then open a terminal there; `--json` prints the plan and its open choices |
 | `seat skills install [seat]` / `seat skills show <name>` | Install the seatwise skills into seats: the `b070nd` plugin on Claude seats (`/b070nd:hybrid`, `/b070nd:terminal`, `/b070nd:status`, `/b070nd:home`) |
 | `seat home init <seat> [path]` / `seat home sync` | Create or adopt a seat's home repo; refresh its pointers. `seat run --home <seat>` starts there |
 | `seat tui` | Seat and project cards, a preset editor, and switches for agents, groups and general options; `w` writes, keeping comments |
@@ -262,8 +262,13 @@ seat term --with experimental  # just the terminal, from any shell
 `seat hybrid` sets up the command-line side in one step, then opens the terminal. It makes sure the project folder
 belongs to the session's seat (`--link` assigns an unassigned one), installs the seat's skills, gives the project a
 use-case preset (`--preset`), and opens a terminal with session-only settings (`--with`). It refuses a folder that
-belongs to another seat. In the desktop app, run `/b070nd:hybrid` or ask for "hybrid mode" or "the CLI for this
-project"; the skill runs `--check` first and asks before assigning folders or presets.
+belongs to another seat. The session-only settings are checked against the settings catalog first: a profile that
+gives settings Claude Code would not take in a session is refused before anything changes.
+
+In the desktop app, run `/b070nd:hybrid` or ask for "hybrid mode" or "the CLI for this project". The skill reads the
+plan (`seat hybrid --json`: each step `ok`, `change` or `open`, and the open choices with the flag for each option)
+and asks you only about the open choices: whether the folder should belong to the seat, a preset, and session-only
+settings such as `--with experimental` (Code Mode), offering only profiles that are valid for a session.
 
 On Claude seats the skills come as a plugin named `b070nd`, so they share one namespace and stay out of the way of
 your own skills. It lives in a small marketplace in the seat's config folder (`seatwise-plugins/`), is enabled in the

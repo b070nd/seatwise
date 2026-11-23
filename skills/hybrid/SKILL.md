@@ -8,23 +8,23 @@ description: Set up the command-line workflow for the current project next to th
 The user works in the desktop app and wants the CLI for the same project on the same seat. `seat hybrid` does the
 setup and opens the terminal. It refuses to cross into another seat's folders.
 
-1. Check first; this changes nothing:
+1. Get the plan; this changes nothing:
 
    ```sh
-   "{{seat}}" hybrid --check
+   "{{seat}}" hybrid --json
    ```
 
-   It reports the seat, the project, whether the folder belongs to the seat, whether the skills are current,
-   the project's preset, and what the terminal would run.
+   It has the seat, the project, one entry per step in `steps` (`owner`, `skills`, `preset`, `session`, `terminal`,
+   each `ok`, `change` or `open`), and in `choices` only what is still up to the user. Steps marked `change` (the
+   seat's skills, for one) happen without asking.
 
-2. Ask the user only about what the check found open:
-   - "owner not assigned": should this project belong to this seat? If yes, add `--link`.
-   - "preset none": do they want a use-case preset for this project? `"{{seat}}" preset list` shows them
-     (explore: reading and planning; build: day-to-day coding; review: careful review; quick: small fixes).
-     If they pick one, add `--preset <name>`.
-   - Experimental or other session-only settings: add `--with <profile>` (`"{{seat}}" profile <seat>` lists them).
+2. Ask the user about each entry in `choices`, and nothing else. Offer its `options` with their `label`s; an option
+   with `"experimental": true` turns on experimental Claude Code features (`--with experimental` is Code Mode), so
+   say so. Each option's `flag` is what to add to the command; an option without a flag leaves that step as it is.
+   The options are already checked: only settings Claude Code takes for that kind of session are offered. If
+   `choices` is empty, go straight on.
 
-3. Run it with the chosen options:
+3. Run it with the chosen flags:
 
    ```sh
    "{{seat}}" hybrid [--link] [--preset <name>] [--with <profile>]

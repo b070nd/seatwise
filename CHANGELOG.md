@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   enables it in the seat's settings.json, registers it with `claude plugin install`, and removes the old loose `seat-*`
   skills. `seat doctor` (with `--fix`), `seat hybrid` and the seat card in `seat show` and `seat tui` report whether
   a seat's skills are current. Codex seats keep loose `seat-*` skills.
+- `seat hybrid` works out a plan first and then carries it out. `seat hybrid --json` prints it: each step `ok`,
+  `change` or `open`, and the open choices with the flag for every option, so `/b070nd:hybrid` asks only about those.
+  Session-only settings (`--with`) are checked against the settings catalog, and only profiles valid for a session
+  are offered; experimental ones are marked.
 
 ### Added
 - The settings catalog: every Claude Code setting and environment variable (243 settings, 401 variables, from Claude
