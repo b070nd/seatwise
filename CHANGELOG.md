@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-23
+
 ### Changed
 - The skills' namespace is now `seatwise`: `/seatwise:hybrid`, `/seatwise:terminal`, `/seatwise:status` and
   `/seatwise:home` (0.4.0 called the plugin `b070nd`). `seat skills install` uninstalls, disables and deletes the old
@@ -132,7 +134,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/b070nd/seatwise/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/b070nd/seatwise/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/b070nd/seatwise/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/b070nd/seatwise/compare/v0.1.0...v0.2.0
