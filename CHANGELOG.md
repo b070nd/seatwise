@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-11-23
+
 ### Added
 - Compaction tiers: `seat compact <seat> sharp|standard|lazy` (150K tokens, the smartest; 400K; the model's whole
   window), a token count such as `250k`, or `off`; `seat compact all <tier>` sets the default for every seat. The
@@ -146,7 +148,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/b070nd/seatwise/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/b070nd/seatwise/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/b070nd/seatwise/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/b070nd/seatwise/compare/v0.3.0...v0.4.0
