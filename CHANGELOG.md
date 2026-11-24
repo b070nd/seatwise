@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-11-24
+
 ### Fixed
 - The fresh-login-shell check behind `seat doctor`'s shim finding reads the shell's `PATH` instead of asking
   `command -v claude`, which answers with the `claude` function `seat shell-init` defines.
@@ -168,7 +170,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/b070nd/seatwise/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/b070nd/seatwise/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/b070nd/seatwise/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/b070nd/seatwise/compare/v0.4.1...v0.4.2
