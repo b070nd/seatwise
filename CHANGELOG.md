@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-24
+
 ### Added
 - `seat share --adopt [seat]` copies the skills tools leave in `~/.claude/skills` and `~/.agents/skills` (no seat reads
   those folders) into the shared folder and adds them to the seats' `share` (every Claude Code seat if none is named).
@@ -182,7 +184,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/b070nd/seatwise/compare/v0.4.5...v0.5.0
 [0.4.5]: https://github.com/b070nd/seatwise/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/b070nd/seatwise/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/b070nd/seatwise/compare/v0.4.2...v0.4.3
