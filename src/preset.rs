@@ -355,6 +355,56 @@ pub fn effective(layers: &[Layer]) -> Vec<(String, Value, String)> {
 }
 
 /// `seat explain`: what a session in `dir` would run with, and why.
+/// [`explain`] as data: the same facts, for `seat explain --json`.
+pub fn explain_doc(cfg: &Config, seat: &Seat, dir: &Path, with: &[String]) -> Value {
+    let (r, layers) = layers(cfg, seat, dir, with);
+    let mut doc = json!({
+        "seat": seat.name,
+        "agent": seat.agent.as_str(),
+        "project": project_root(dir).display().to_string(),
+    });
+    if seat.agent != Agent::Claude {
+        return doc;
+    }
+    let session = session_settings(cfg, &r, with);
+    doc["group"] = json!(r.group);
+    doc["preset"] = json!(r.preset);
+    doc["preset_note"] = json!(r.note);
+    doc["apply"] = json!(r.apply.as_str());
+    doc["sources"] = json!(r.sources);
+    doc["fingerprint"] = json!(fingerprint(&session, r.sources.as_deref()));
+    doc["layers"] = layers
+        .iter()
+        .map(|l| {
+            json!({
+                "name": l.name,
+                "path": l.path.as_ref().map(|p| p.display().to_string()),
+                "exists": l.path.as_ref().is_some_and(|p| p.exists()),
+            })
+        })
+        .collect();
+    doc["effective"] = effective(&layers)
+        .into_iter()
+        .map(|(k, v, l)| json!({ "key": k, "value": v, "layer": l }))
+        .collect();
+    doc
+}
+
+/// The settings a session gets at start (`--settings`): the preset when it applies per session, then `--with`.
+fn session_settings(cfg: &Config, r: &Resolved, with: &[String]) -> Value {
+    let mut session = if r.apply == Apply::Session {
+        r.settings.clone()
+    } else {
+        json!({})
+    };
+    for w in with {
+        if let Some(v) = crate::plan::settings_of(cfg, w) {
+            crate::plan::merge(&mut session, &v);
+        }
+    }
+    session
+}
+
 pub fn explain(cfg: &Config, seat: &Seat, dir: &Path, with: &[String]) -> String {
     let (r, layers) = layers(cfg, seat, dir, with);
     let mut s = format!("seat     {}\n", seat.name);
@@ -377,16 +427,7 @@ pub fn explain(cfg: &Config, seat: &Seat, dir: &Path, with: &[String]) -> String
     if let Some(src) = &r.sources {
         s += &format!("sources  {} (others ignored)\n", src.join(", "));
     }
-    let mut session = if r.apply == Apply::Session {
-        r.settings.clone()
-    } else {
-        json!({})
-    };
-    for w in with {
-        if let Some(v) = crate::plan::settings_of(cfg, w) {
-            crate::plan::merge(&mut session, &v);
-        }
-    }
+    let session = session_settings(cfg, &r, with);
     s += &format!("print    {}\n", fingerprint(&session, r.sources.as_deref()));
     s += "\nlayers (lowest first):\n";
     for l in &layers {

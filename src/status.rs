@@ -179,5 +179,19 @@ pub fn list(cfg: &Config, exe: &Path) -> String {
             cfg.folders_of(&seat.name).len().to_string(),
         ]);
     }
-    table(&rows)
+    let mut out = table(&rows);
+    let open: Vec<&str> = cfg
+        .seats
+        .iter()
+        .filter(|s| cfg.enforcement_of(s) == crate::config::Enforcement::Off)
+        .map(|s| s.name.as_str())
+        .collect();
+    if !open.is_empty() {
+        out += &format!(
+            "\nNot isolated (enforcement off): {}. Their sessions can read every seat's folders; \
+             set enforcement = \"warn\" or \"strict\".\n",
+            open.join(", ")
+        );
+    }
+    out
 }

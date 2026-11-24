@@ -2,6 +2,9 @@
 # (~/.config/seatwise/config.toml on macOS/Linux, %APPDATA%\seatwise\config.toml on Windows).
 # Everything except the seats is optional; the defaults are shown.
 
+# The config format. Unset means 1. A config from a newer seatwise is refused rather than guessed at.
+version = 1
+
 # How hard each seat is held to its folders and org (a seat can override it):
 #   "off"     folders only pick the seat; no hooks are installed
 #   "warn"    starting or prompting in another seat's folder warns; touching its files asks you first

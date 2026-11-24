@@ -247,9 +247,23 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
             .all(|s| cfg.enforcement_of(s) == Enforcement::Off)
     {
         out.push(finding(
-            Level::Info,
+            Level::Warn,
             "isolation is off: sessions can read every seat's folders. Set enforcement = \"warn\" (or \"strict\") and run `seat install-hooks`",
         ));
+    } else {
+        for s in cfg
+            .seats
+            .iter()
+            .filter(|s| cfg.is_enabled(s) && cfg.enforcement_of(s) == Enforcement::Off)
+        {
+            out.push(finding(
+                Level::Warn,
+                format!(
+                    "seat '{}' isn't isolated (enforcement off): its sessions can read every seat's folders",
+                    s.name
+                ),
+            ));
+        }
     }
     for f in &cfg.folders {
         if !paths::expand(&f.path).exists() {

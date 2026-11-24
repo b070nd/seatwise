@@ -7,7 +7,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- `--json` on `seat owner`, `list`, `ps`, `explain` and `doctor`, for orchestrators that need to ask which seat a
+  folder belongs to before they start an agent. `seat owner --json` also says which seat `seat run auto` would start
+  there. Every document carries `"schema": 1`; fields are only added within a version. The schema, the exit codes
+  and the contract for probes, worktrees and subagents are in docs/json.md.
+- A config format version: `version = 1` in config.toml (unset means 1). A config from a newer seatwise is refused
+  with the version it needs, instead of being guessed at; older formats will be migrated on load.
+
 ### Changed
+- `seat init` proposes `enforcement = "warn"` and writes `version = 1`. A config without `enforcement` still means
+  `off`.
+- `seat list` ends with the seats that aren't isolated (enforcement off), and `seat doctor` warns about each of them.
+  A config where every seat is off is a warning now, not just information.
 - Guarded seats fail closed: `seat run` puts missing or outdated hooks back before the session starts, and a `strict`
   seat whose hooks can't be written doesn't start (exit 3).
 - `SEATWISE_FORCE=1` is honoured only when typed in a terminal, never inside an agent session or a hook, and it now

@@ -360,6 +360,21 @@ fn probe_seat(cfg: &Config) -> Option<&Seat> {
         })
 }
 
+/// The seat `seat run auto` starts in `dir` without asking: the folder's owner if it is enabled, else (in a folder no
+/// seat owns, unless enforcement is strict) `default_seat`. `None` when it would ask on a terminal or refuse.
+pub fn auto_seat<'a>(cfg: &'a Config, dir: &Path) -> Option<&'a Seat> {
+    match owner_of(cfg, dir) {
+        Some(Owner::Seat(s)) => cfg.seat(s).filter(|s| cfg.is_enabled(s)),
+        Some(Owner::Any) => None,
+        Some(Owner::Nobody) | None if cfg.enforcement == Enforcement::Strict => None,
+        Some(Owner::Nobody) | None => cfg
+            .default_seat
+            .as_deref()
+            .and_then(|d| cfg.seat(d))
+            .filter(|s| cfg.is_enabled(s)),
+    }
+}
+
 /// The seat for `seat run auto`: the folder's owner, else `default_seat`, else a choice on the terminal.
 fn resolve_auto<'a>(cfg: &'a Config, owner: Option<Owner<'_>>, cwd: &Path) -> Result<&'a Seat> {
     let why = match owner {

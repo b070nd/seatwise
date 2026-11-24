@@ -905,6 +905,10 @@ fn init_proposes_seats_pins_and_folders_from_history() {
         "{cfg}"
     );
     assert!(cfg.contains("Used by x and y"), "{cfg}");
+    assert!(
+        cfg.contains("version = 1") && cfg.contains("enforcement = \"warn\""),
+        "a new config is versioned and isolated: {cfg}"
+    );
     assert!(cfg.contains("path = \"~/proj-b\"\nowner = \"y\""), "{cfg}");
     assert!(!cfg.contains("nested"), "covered by proj-a: {cfg}");
     // Claude Code's default folder next to named ones: proposed commented out, its folders left out.
@@ -2307,5 +2311,70 @@ fn hybrid_checks_then_sets_up_the_project_and_the_terminal() {
         !out.status.success() && text(&out).contains("belongs to seat 'b'"),
         "{}",
         text(&out)
+    );
+}
+
+#[test]
+fn json_for_orchestrators() {
+    let e = setup();
+    let json = |dir: &str, args: &[&str]| -> serde_json::Value {
+        let out = e.seat(dir, args).output().unwrap();
+        serde_json::from_slice(&out.stdout)
+            .unwrap_or_else(|err| panic!("{args:?}: {err}: {}", text(&out)))
+    };
+    let v = json("proj-a", &["owner", "--json"]);
+    assert_eq!(v["schema"], 1);
+    assert_eq!(
+        (v["kind"].as_str(), v["owner"].as_str()),
+        (Some("seat"), Some("a"))
+    );
+    assert_eq!(v["run_seat"], "a");
+    assert_eq!(v["enforcement"], "strict");
+    let v = json("", &["owner", "--json", "/nowhere"]);
+    assert_eq!(v["kind"], "unassigned");
+    assert!(v["run_seat"].is_null(), "strict: refused, so no seat: {v}");
+
+    let v = json("", &["list", "--json"]);
+    let seats = v["seats"].as_array().unwrap();
+    assert_eq!(seats[0]["name"], "a");
+    assert!(seats[0]["folders"].as_array().is_some());
+    assert!(!v.to_string().contains("org-a"), "no identifiers: {v}");
+
+    let v = json("", &["ps", "--json"]);
+    assert!(v["sessions"].is_array(), "{v}");
+
+    let v = json("proj-a", &["explain", "--json"]);
+    assert_eq!(v["seat"], "a");
+    assert!(
+        v["layers"].is_array() && v["fingerprint"].is_string(),
+        "{v}"
+    );
+
+    let out = e.seat("", &["doctor", "--json"]).output().unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["hook_contract"], 1);
+    assert_eq!(v["ok"], out.status.success(), "exit code and ok agree: {v}");
+    assert!(
+        v["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["level"].is_string())
+    );
+}
+
+#[test]
+fn config_from_a_newer_seatwise_is_refused() {
+    let e = setup();
+    let text_now = fs::read_to_string(&e.config).unwrap();
+    fs::write(&e.config, format!("version = 1\n{text_now}")).unwrap();
+    assert!(e.seat("", &["list"]).output().unwrap().status.success());
+    fs::write(&e.config, format!("version = 99\n{text_now}")).unwrap();
+    let out = e.seat("", &["list"]).output().unwrap();
+    let t = text(&out);
+    assert!(!out.status.success(), "{t}");
+    assert!(
+        t.contains("format version 99") && t.contains("resolution: Upgrade seatwise"),
+        "{t}"
     );
 }

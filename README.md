@@ -148,6 +148,9 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat sentinel [--here]` / `install` / `rules` | Find settings worth changing; `install` schedules it every `sentinel.interval` |
 | `seat completions <shell>` | Shell completions |
 
+`owner`, `list`, `ps`, `explain` and `doctor` take `--json`, for tools that start agent sessions themselves. The
+schema, the exit codes and how to start sessions from an orchestrator: [docs/json.md](docs/json.md).
+
 ## Plans and usage
 
 `seat list` shows each seat's plan (Pro, Max 5x/20x, Team standard/premium, Enterprise) and `+extra` when usage beyond

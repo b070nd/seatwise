@@ -63,9 +63,7 @@ impl ConfigFile {
 
     /// The config as it would be after the pending changes.
     pub fn config(&self) -> Result<Config> {
-        let cfg: Config = toml::from_str(&self.doc.to_string())?;
-        cfg.validate()?;
-        Ok(cfg)
+        Config::parse(&self.doc.to_string())
     }
 
     /// Check, then write.

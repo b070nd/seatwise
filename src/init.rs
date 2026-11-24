@@ -277,9 +277,12 @@ pub fn propose(found: &[Found]) -> String {
     let mut out = String::from(
         "# seatwise config, proposed by `seat init` from the Claude Code folders on this machine.\n\
          # Review it, then check with `seat doctor`. All options: config.example.toml.\n\n\
+         # The config format; seatwise refuses a config from a newer version instead of guessing.\n\
+         version = 1\n\n\
          # Isolation between seats: \"warn\" (recommended) tells you and asks before a session touches another\n\
-         # seat's folders; \"strict\" blocks it. Run `seat install-hooks` after changing this.\n\
-         enforcement = \"off\"\n",
+         # seat's folders; \"strict\" blocks it; \"off\" only picks the seat by folder. Hooks are installed on the\n\
+         # next start (or `seat install-hooks`).\n\
+         enforcement = \"warn\"\n",
     );
     // An agent's default folder next to named ones is usually left over from before seats: proposed commented out.
     let home = paths::home();

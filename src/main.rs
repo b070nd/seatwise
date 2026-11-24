@@ -172,11 +172,20 @@ enum Cmd {
         #[arg(long, conflicts_with = "path")]
         missing: bool,
     },
-    /// Show which seat owns a folder (default: the current one)
-    Owner { path: Option<PathBuf> },
+    /// Show which seat owns a folder (default: the current one), and which seat `seat run auto` starts there
+    Owner {
+        path: Option<PathBuf>,
+        /// Print JSON (schema in docs/json.md)
+        #[arg(long)]
+        json: bool,
+    },
     /// Every seat: account, identity check, enforcement, hooks, links, folders
     #[command(alias = "status")]
-    List,
+    List {
+        /// Print JSON (schema in docs/json.md)
+        #[arg(long)]
+        json: bool,
+    },
     /// One seat in full: account, plan, identity, isolation, links, desktop app, and its projects
     Show {
         seat: String,
@@ -189,7 +198,11 @@ enum Cmd {
         json: bool,
     },
     /// Claude Code sessions running now, by seat
-    Ps,
+    Ps {
+        /// Print JSON (schema in docs/json.md)
+        #[arg(long)]
+        json: bool,
+    },
     /// Check for anything that weakens the isolation between seats or stops one from working
     Doctor {
         /// Apply the fixes doctor knows (hooks, shim)
@@ -199,6 +212,9 @@ enum Cmd {
         /// each with the instances that were running when it was written (macOS)
         #[arg(long, conflicts_with = "fix")]
         desktop: bool,
+        /// Print the findings as JSON (schema in docs/json.md); the exit code is the same
+        #[arg(long, conflicts_with = "desktop")]
+        json: bool,
     },
     /// What the guard blocked or warned about lately (hooks), and where the run logs are
     Log {
@@ -252,6 +268,9 @@ enum Cmd {
         seat: Option<String>,
         #[arg(long = "with")]
         with: Vec<String>,
+        /// Print JSON (schema in docs/json.md)
+        #[arg(long)]
+        json: bool,
     },
     /// Use-case presets (usage profiles combined with settings) for folder groups
     #[command(subcommand)]
@@ -1091,8 +1110,7 @@ fn run(cmd: Cmd) -> Result<i32> {
                 }
                 return Ok(0);
             }
-            let cfg: Config = toml::from_str(&proposal)?;
-            cfg.validate()?;
+            let cfg = Config::parse(&proposal)?;
             if let Some(dir) = target.parent() {
                 std::fs::create_dir_all(dir)?;
             }
@@ -1366,9 +1384,13 @@ fn run(cmd: Cmd) -> Result<i32> {
             outln!("{}: entry removed", path.display());
             Ok(0)
         }
-        Cmd::Owner { path } => {
+        Cmd::Owner { path, json } => {
             let cfg = Config::load()?;
             let p = here_or(path)?;
+            if json {
+                outln!("{}", seatwise::machine::owner(&cfg, &p));
+                return Ok(0);
+            }
             let owner = match folders::owner_of(&cfg, &p) {
                 Some(Owner::Seat(s)) => s.to_string(),
                 Some(Owner::Any) => "any (shared start folder)".into(),
@@ -1378,8 +1400,13 @@ fn run(cmd: Cmd) -> Result<i32> {
             outln!("{}: {owner}", p.display());
             Ok(0)
         }
-        Cmd::List => {
-            out!("{}", status::list(&Config::load()?, &exe));
+        Cmd::List { json } => {
+            let cfg = Config::load()?;
+            if json {
+                outln!("{}", seatwise::machine::seats(&cfg, &exe));
+            } else {
+                out!("{}", status::list(&cfg, &exe));
+            }
             Ok(0)
         }
         Cmd::Show { seat, json } => {
@@ -1405,14 +1432,18 @@ fn run(cmd: Cmd) -> Result<i32> {
             }
             Ok(0)
         }
-        Cmd::Ps => {
+        Cmd::Ps { json } => {
             // Works before there is a config too: sessions then show their config folder.
             let cfg = if paths::config_file().exists() {
                 Config::load()?
             } else {
                 Config::default()
             };
-            out!("{}", ps::list(&cfg)?);
+            if json {
+                outln!("{}", seatwise::machine::sessions(&cfg)?);
+            } else {
+                out!("{}", ps::list(&cfg)?);
+            }
             Ok(0)
         }
         Cmd::Doctor { desktop: true, .. } => {
@@ -1422,16 +1453,25 @@ fn run(cmd: Cmd) -> Result<i32> {
             }
             Ok(0)
         }
-        Cmd::Doctor { fix, .. } => {
+        Cmd::Doctor { fix, json, .. } => {
             let cfg = Config::load()?;
             let mut findings = doctor::check(&cfg, &exe);
             if fix {
                 for done in doctor::fix(&cfg, &exe, &findings)? {
-                    outln!("fixed: {done}");
+                    // Keep stdout one JSON document.
+                    if json {
+                        errln!("fixed: {done}");
+                    } else {
+                        outln!("fixed: {done}");
+                    }
                 }
                 findings = doctor::check(&cfg, &exe);
             }
-            out!("{}", doctor::report(&findings));
+            if json {
+                outln!("{}", seatwise::machine::doctor(&findings));
+            } else {
+                out!("{}", doctor::report(&findings));
+            }
             Ok(i32::from(
                 findings.iter().any(|f| f.level == doctor::Level::Error),
             ))
@@ -1600,7 +1640,12 @@ fn run(cmd: Cmd) -> Result<i32> {
             outln!("{}", toggle(&target, false)?);
             Ok(0)
         }
-        Cmd::Explain { path, seat, with } => {
+        Cmd::Explain {
+            path,
+            seat,
+            with,
+            json,
+        } => {
             let cfg = Config::load()?;
             let dir = here_or(path)?;
             let seat = match seat {
@@ -1608,7 +1653,11 @@ fn run(cmd: Cmd) -> Result<i32> {
                 None => seat_here(&cfg, &dir)
                     .with_context(|| format!("no seat for {}; pass --seat", dir.display()))?,
             };
-            out!("{}", seatwise::preset::explain(&cfg, seat, &dir, &with));
+            if json {
+                outln!("{}", seatwise::machine::explain(&cfg, seat, &dir, &with));
+            } else {
+                out!("{}", seatwise::preset::explain(&cfg, seat, &dir, &with));
+            }
             Ok(0)
         }
         Cmd::Preset(PresetCmd::List) => {

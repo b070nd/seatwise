@@ -293,9 +293,36 @@ impl Default for ShellOptions {
     }
 }
 
+/// Bring a config written for an older format up to [`CONFIG_VERSION`] (in memory; the file is left as it is), and
+/// refuse one written by a newer seatwise: its meaning can't be guessed, and reading it anyway could weaken the
+/// isolation it asks for. Each future format change adds one step here.
+pub fn migrate(raw: toml::Table) -> Result<toml::Table> {
+    let version = match raw.get("version") {
+        None => 1,
+        Some(toml::Value::Integer(n)) if *n >= 1 => u32::try_from(*n).unwrap_or(u32::MAX),
+        Some(other) => bail!("`version` must be a whole number from 1, not {other}"),
+    };
+    if version > CONFIG_VERSION {
+        return Err(crate::error::UserError::new(format!(
+            "this config is format version {version}, written by a newer seatwise; this one reads up to \
+             {CONFIG_VERSION}"
+        ))
+        .resolution("Upgrade seatwise: cargo install seatwise --locked")
+        .into());
+    }
+    // Version 1 is the first format: nothing to migrate yet.
+    Ok(raw)
+}
+
+/// The config format this seatwise reads and writes. A config without `version` is version 1.
+pub const CONFIG_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    /// The config format (`CONFIG_VERSION`). Unset: 1. A newer one is refused, an older one migrated on load.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<u32>,
     /// Default for every seat; a seat can override it.
     #[serde(default)]
     pub enforcement: Enforcement,
@@ -513,11 +540,20 @@ impl Config {
     pub fn load_from(path: &Path) -> Result<Self> {
         let text = std::fs::read_to_string(path)
             .with_context(|| format!("reading {} (see config.example.toml)", path.display()))?;
-        let cfg: Config =
-            toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
-        cfg.validate()
-            .with_context(|| format!("checking {}", path.display()))?;
+        Self::parse(&text).with_context(|| format!("reading {}", path.display()))
+    }
+
+    /// A config from its text: parsed, migrated to [`CONFIG_VERSION`] and checked.
+    pub fn parse(text: &str) -> Result<Self> {
+        let raw: toml::Table = toml::from_str(text).context("parsing")?;
+        let cfg: Config = migrate(raw)?.try_into().context("parsing")?;
+        cfg.validate().context("checking")?;
         Ok(cfg)
+    }
+
+    /// The config format of this config (1 when unset).
+    pub fn format_version(&self) -> u32 {
+        self.version.unwrap_or(1)
     }
 
     pub fn validate(&self) -> Result<()> {
