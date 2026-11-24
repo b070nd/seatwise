@@ -538,6 +538,17 @@ fn compact_cmd(seat: Option<String>, value: Option<String>) -> Result<i32> {
 }
 
 fn main() -> ExitCode {
+    // The command table and its generated completions recurse deep enough to overflow Windows' 1 MB main-thread
+    // stack in debug builds; run on a thread with room.
+    std::thread::Builder::new()
+        .stack_size(16 << 20)
+        .spawn(real_main)
+        .map_or(ExitCode::from(1), |t| {
+            t.join().unwrap_or(ExitCode::from(101))
+        })
+}
+
+fn real_main() -> ExitCode {
     let argv: Vec<String> = std::env::args().collect();
     // Test double: the integration tests copy this binary as `fake-claude` to see what `seat run` hands to Claude.
     if std::env::current_exe().is_ok_and(|p| {
