@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-24
+
 ### Changed
 - Everything seatwise prints now goes through one output module, which redacts account identifiers in the process
   itself (for an agent, or when output isn't a terminal). That replaces re-running the whole command with its pipes
@@ -196,7 +198,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/b070nd/seatwise/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/b070nd/seatwise/compare/v0.4.5...v0.5.0
 [0.4.5]: https://github.com/b070nd/seatwise/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/b070nd/seatwise/compare/v0.4.3...v0.4.4
