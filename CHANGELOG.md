@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-25
+
 ### Changed
 - The README has a full usage reference: every command and its flags, grouped by task, with examples, and a set of
   real-life walkthroughs. It replaces the short command table.
@@ -248,7 +250,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/b070nd/seatwise/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/b070nd/seatwise/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/b070nd/seatwise/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/b070nd/seatwise/compare/v0.5.0...v0.6.0
