@@ -15,6 +15,8 @@ mistakes, such as a session on the wrong account or in the wrong folder, not a s
   - Whenever an agent runs seatwise, or its output is piped, they are replaced by placeholders such as `<org:work>`.
   - Hook messages never contain them.
   - `SEATWISE_REVEAL=1` only works outside an agent.
+- **Logs.** The run logs and `hooks.log` in the data folder hold folder paths and seat names, redacted like all
+  output, and never identifiers, credentials or a session's arguments.
 - **Tokens.** seatwise never prints, stores or refreshes a login token. `seat usage` sends a seat's token only to
   Anthropic's usage endpoint, the host Claude Code itself sends it to, and refuses any other host.
 

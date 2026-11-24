@@ -62,6 +62,14 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
         bail!("seat '{}' can't start: {why}", seat.name);
     }
 
+    crate::runlog::line(&format!(
+        "run seat={} dir={} enforcement={:?} forced={} probe={}",
+        seat.name,
+        cwd.display(),
+        cfg.enforcement_of(seat),
+        guard::forced(),
+        probe_only
+    ));
     if !guard::forced() && !probe_only {
         let level = cfg.enforcement_of(seat);
         if level != Enforcement::Off {
@@ -81,20 +89,20 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
         )?;
     }
     for note in sync::reconcile(seat, &cfg.track)? {
-        errln!("seat: {note}");
+        note_line(&note);
     }
     for note in share::apply(cfg, seat)? {
-        errln!("seat: {note}");
+        note_line(&note);
     }
     for note in crate::home::apply_skills(seat)? {
-        errln!("seat: {note}");
+        note_line(&note);
     }
     if let Some(t) = crate::compact::enforce(cfg, seat)? {
-        errln!(
-            "seat: compaction at {} set in {}",
+        note_line(&format!(
+            "compaction at {} set in {}",
             crate::compact::label(t),
             seat.hooks_file().display()
-        );
+        ));
     }
 
     crate::sentinel::on_start(cfg, seat, &cwd);
@@ -164,7 +172,19 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
         cmd.env("SEATWISE_PRESET", format!("{name}@{print}"));
     }
     cmd.args(args);
+    // The count only: a session's arguments can be a prompt.
+    crate::runlog::line(&format!(
+        "exec {} with {} argument(s)",
+        seat.agent.binary(),
+        args.len()
+    ));
     exec(cmd)
+}
+
+/// A note for the user, kept in the run log too.
+fn note_line(note: &str) {
+    errln!("seat: {note}");
+    crate::runlog::line(note);
 }
 
 /// The agent with a seat's environment: its config folder, its link handling, and no stray credentials.
@@ -230,14 +250,17 @@ pub fn login(seat: &Seat) -> Result<i32> {
     Ok(status.code().unwrap_or(1))
 }
 
-fn apply(level: Enforcement, check: Result<(), String>) -> Result<()> {
+fn apply(level: Enforcement, check: Result<(), guard::Refusal>) -> Result<()> {
+    if let Err(m) = &check {
+        crate::runlog::line(&format!("guard ({level:?}): {m}"));
+    }
     match (check, level) {
         (Ok(()), _) | (Err(_), Enforcement::Off) => Ok(()),
         (Err(m), Enforcement::Warn) => {
             errln!("seat: warning: {m}");
             Ok(())
         }
-        (Err(m), Enforcement::Strict) => bail!("{m}"),
+        (Err(m), Enforcement::Strict) => Err(crate::error::UserError::from(m).into()),
     }
 }
 
@@ -268,11 +291,13 @@ fn resolve_auto<'a>(cfg: &'a Config, owner: Option<Owner<'_>>, cwd: &Path) -> Re
         Some(Owner::Nobody) | None => {
             if cfg.enforcement == Enforcement::Strict {
                 // Reuse the wording of the start check; the folder belongs to no seat anyway.
-                let msg = match cfg.seats.first() {
-                    Some(seat) => guard::check_start(cfg, seat, cwd).err().unwrap_or_default(),
-                    None => "no seats configured".into(),
+                let Some(seat) = cfg.seats.first() else {
+                    bail!("no seats configured");
                 };
-                bail!("{msg}");
+                return Err(match guard::check_start(cfg, seat, cwd) {
+                    Err(r) => crate::error::UserError::from(r).into(),
+                    Ok(()) => anyhow::anyhow!("{} belongs to no seat", cwd.display()),
+                });
             }
             if let Some(d) = &cfg.default_seat
                 && cfg.is_enabled(cfg.seat(d).expect("validated config"))

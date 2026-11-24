@@ -12,64 +12,112 @@ pub fn forced() -> bool {
     std::env::var_os("SEATWISE_FORCE").is_some_and(|v| !v.is_empty())
 }
 
+/// Why the guard says no: what is wrong and, separately, what to do about it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Refusal {
+    pub message: String,
+    pub resolution: Option<String>,
+}
+
+impl Refusal {
+    fn new(message: String) -> Self {
+        Refusal {
+            message,
+            resolution: None,
+        }
+    }
+
+    fn resolve(mut self, resolution: String) -> Self {
+        self.resolution = Some(resolution);
+        self
+    }
+}
+
+/// One line, for hooks and warnings: the message and then the resolution.
+impl std::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)?;
+        match &self.resolution {
+            Some(r) => write!(f, " {r}"),
+            None => Ok(()),
+        }
+    }
+}
+
+impl From<Refusal> for crate::error::UserError {
+    fn from(r: Refusal) -> Self {
+        let mut e = crate::error::UserError::new(r.message).code(crate::error::Code::Refused);
+        e.resolution = r.resolution;
+        e
+    }
+}
+
 /// Starting (or prompting) in `dir` as `seat`: the folder must belong to the seat or be shared (`any`).
-pub fn check_start(cfg: &Config, seat: &Seat, dir: &Path) -> Result<(), String> {
+pub fn check_start(cfg: &Config, seat: &Seat, dir: &Path) -> Result<(), Refusal> {
     match owner_of(cfg, dir) {
         Some(Owner::Any) => Ok(()),
         Some(Owner::Seat(s)) if s == seat.name => Ok(()),
-        Some(Owner::Seat(s)) => Err(format!(
-            "{} belongs to seat '{s}', not '{}'. Use: seat run {s}",
+        Some(Owner::Seat(s)) => Err(Refusal::new(format!(
+            "{} belongs to seat '{s}', not '{}'.",
             dir.display(),
             seat.name
-        )),
-        Some(Owner::Nobody) => Err(format!(
+        ))
+        .resolve(format!("Use: seat run {s}"))),
+        Some(Owner::Nobody) => Err(Refusal::new(format!(
             "{} is closed to every seat (owner = \"none\")",
             dir.display()
-        )),
-        None => Err(format!(
-            "{} is not assigned to a seat. Add a [[folder]] entry to {}",
-            dir.display(),
-            paths::config_file().display()
-        )),
+        ))),
+        None => Err(
+            Refusal::new(format!("{} is not assigned to a seat.", dir.display())).resolve(format!(
+                "Add a [[folder]] entry to {} (seat link <seat> <folder>)",
+                paths::config_file().display()
+            )),
+        ),
     }
 }
 
 /// Touching `path` from a `seat` session: blocked only when another seat (or `none`) owns it.
-pub fn check_access(cfg: &Config, seat: &Seat, path: &Path) -> Result<(), String> {
+pub fn check_access(cfg: &Config, seat: &Seat, path: &Path) -> Result<(), Refusal> {
     match owner_of(cfg, path) {
         None | Some(Owner::Any) => Ok(()),
         Some(Owner::Seat(s)) if s == seat.name => Ok(()),
-        Some(Owner::Seat(s)) => Err(format!(
+        Some(Owner::Seat(s)) => Err(Refusal::new(format!(
             "{} belongs to seat '{s}'; the '{}' seat can't access it.",
             path.display(),
             seat.name
-        )),
-        Some(Owner::Nobody) => Err(format!("{} is closed to every seat.", path.display())),
+        ))),
+        Some(Owner::Nobody) => Err(Refusal::new(format!(
+            "{} is closed to every seat.",
+            path.display()
+        ))),
     }
 }
 
 /// The seat must be signed into its pinned org and as its pinned email. Signed out (or unpinned) passes:
 /// there is nothing to compare yet, and logging in must stay possible.
-pub fn check_identity(seat: &Seat, org: Option<&str>, email: Option<&str>) -> Result<(), String> {
+pub fn check_identity(seat: &Seat, org: Option<&str>, email: Option<&str>) -> Result<(), Refusal> {
     if let (Some(want), Some(got)) = (seat.org_uuid.as_deref(), org)
         && want != got
     {
         // No identifiers in the message: it can reach the model (hooks) and leave the machine.
-        let _ = got;
-        return Err(format!(
-            "seat '{}' is signed into another org than the one pinned for it. Run /login and pick the pinned org \
-             (`seat list` shows it on your terminal; SEATWISE_FORCE=1 to start anyway).",
+        return Err(Refusal::new(format!(
+            "seat '{}' is signed into another org than the one pinned for it.",
             seat.name
+        ))
+        .resolve(
+            "Run /login and pick the pinned org (`seat list` shows it on your terminal; SEATWISE_FORCE=1 to start \
+             anyway)."
+                .into(),
         ));
     }
     if let (Some(want), Some(got)) = (seat.email.as_deref(), email)
         && !want.eq_ignore_ascii_case(got)
     {
-        return Err(format!(
-            "seat '{}' is signed in with another account than the one pinned for it. Run /login with the pinned \
-             account (SEATWISE_FORCE=1 to start anyway).",
+        return Err(Refusal::new(format!(
+            "seat '{}' is signed in with another account than the one pinned for it.",
             seat.name
-        ));
+        ))
+        .resolve("Run /login with the pinned account (SEATWISE_FORCE=1 to start anyway).".into()));
     }
     Ok(())
 }
@@ -84,11 +132,11 @@ pub enum Verdict {
 }
 
 impl Verdict {
-    fn at(level: Enforcement, check: Result<(), String>) -> Self {
+    fn at(level: Enforcement, check: Result<(), Refusal>) -> Self {
         match (check, level) {
             (Ok(()), _) | (Err(_), Enforcement::Off) => Verdict::Allow,
-            (Err(m), Enforcement::Warn) => Verdict::Warn(m),
-            (Err(m), Enforcement::Strict) => Verdict::Block(m),
+            (Err(m), Enforcement::Warn) => Verdict::Warn(m.to_string()),
+            (Err(m), Enforcement::Strict) => Verdict::Block(m.to_string()),
         }
     }
 }
@@ -342,10 +390,12 @@ mod tests {
         };
         let (a, b) = (&cfg.seats[0], &cfg.seats[1]);
         assert!(check_start(&cfg, a, &root.join("a/x")).is_ok());
+        let refused = check_start(&cfg, b, &root.join("a/x")).unwrap_err();
+        assert!(refused.message.contains("seat 'a'"));
+        assert_eq!(refused.resolution.as_deref(), Some("Use: seat run a"));
         assert!(
-            check_start(&cfg, b, &root.join("a/x"))
-                .unwrap_err()
-                .contains("seat 'a'")
+            refused.to_string().ends_with("Use: seat run a"),
+            "hooks get one line"
         );
         assert!(check_start(&cfg, b, &root.join("start")).is_ok());
         assert!(check_start(&cfg, a, &root.join("other")).is_err(), "none");
@@ -373,7 +423,7 @@ mod tests {
 
     #[test]
     fn enforcement_levels() {
-        let err = || Err("x".to_string());
+        let err = || Err(Refusal::new("x".to_string()));
         assert_eq!(Verdict::at(Enforcement::Off, err()), Verdict::Allow);
         assert_eq!(
             Verdict::at(Enforcement::Warn, err()),

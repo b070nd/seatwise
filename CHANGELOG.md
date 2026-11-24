@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Exit codes that say why: 1 failure, 2 usage error, 3 refused by the isolation guard (wrong or closed folder, wrong
+  org), 4 no such seat, preset or group. Errors can carry a `resolution:` line with what to do about them (for example
+  `Use: seat run work` when a folder belongs to another seat). Hooks still exit 2 to block, as Claude Code expects.
+- Logs of what seatwise decided, in `<data dir>/logs`. Every failing command, and every `seat run`, writes a run log
+  (the newest 50 are kept) and a failing command ends with `log: <path>`. Hook blocks and warnings go to `hooks.log`
+  (rotated at 256 KB); `seat log` shows the latest. Lines are redacted and never hold identifiers, credentials or a
+  session's arguments.
+
 ## [0.6.0] - 2026-11-24
 
 ### Changed

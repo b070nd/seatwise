@@ -39,7 +39,7 @@ impl<'a> SeatStatus<'a> {
                 match crate::guard::check_identity(seat, a.org_uuid.as_deref(), a.email.as_deref())
                 {
                     Ok(()) => Identity::Ok,
-                    Err(m) => Identity::Wrong(m),
+                    Err(m) => Identity::Wrong(m.to_string()),
                 }
             }
         };

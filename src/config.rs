@@ -728,7 +728,7 @@ impl Config {
                     std::iter::once(s.name.as_str()).chain(s.aliases.iter().map(String::as_str))
                 })
                 .collect();
-            anyhow::anyhow!("{}", crate::suggest::unknown("seat", name, &names))
+            crate::error::UserError::not_found(crate::suggest::unknown("seat", name, &names)).into()
         })
     }
 

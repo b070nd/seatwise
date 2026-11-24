@@ -200,6 +200,12 @@ enum Cmd {
         #[arg(long, conflicts_with = "fix")]
         desktop: bool,
     },
+    /// What the guard blocked or warned about lately (hooks), and where the run logs are
+    Log {
+        /// How many of the latest hook events to show
+        #[arg(short = 'n', long, default_value_t = 20)]
+        lines: usize,
+    },
     /// Install or refresh the guard hooks in each seat's settings.json, or remove them where enforcement is off
     /// (all seats if none are named)
     InstallHooks { seats: Vec<String> },
@@ -627,8 +633,15 @@ fn finish(result: Result<i32>) -> ExitCode {
     match result {
         Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
         Err(e) => {
-            errln!("seat: {e:#}");
-            ExitCode::FAILURE
+            seatwise::runlog::line(&format!("error: {e:#}"));
+            let (lines, code) = seatwise::error::render(&e);
+            for line in lines {
+                errln!("{line}");
+            }
+            if let Some(log) = seatwise::runlog::path() {
+                errln!("  log: {}", seatwise::paths::contract(&log));
+            }
+            ExitCode::from(code)
         }
     }
 }
@@ -665,6 +678,10 @@ fn hook(h: HookCmd) -> ExitCode {
     match verdict {
         Verdict::Allow => ExitCode::SUCCESS,
         Verdict::Warn(msg) => {
+            seatwise::runlog::hook_event(&format!(
+                "warn {} seat={seat_name}: {msg}",
+                if prompt { "prompt" } else { "tool" }
+            ));
             let msg = format!("seatwise: {msg}");
             let out = if prompt {
                 serde_json::json!({ "systemMessage": msg })
@@ -680,6 +697,10 @@ fn hook(h: HookCmd) -> ExitCode {
             ExitCode::SUCCESS
         }
         Verdict::Block(msg) => {
+            seatwise::runlog::hook_event(&format!(
+                "block {} seat={seat_name}: {msg}",
+                if prompt { "prompt" } else { "tool" }
+            ));
             errln!("seatwise: {msg}");
             ExitCode::from(2)
         }
@@ -1294,7 +1315,11 @@ fn run(cmd: Cmd) -> Result<i32> {
                 seatwise::config::ANY | seatwise::config::NONE => owner,
                 s => cfg
                     .seat_named(s)
-                    .map_err(|e| anyhow::anyhow!("{e}; or use \"any\" / \"none\""))?
+                    .map_err(|e| {
+                        seatwise::error::UserError::not_found(format!(
+                            "{e}; or use \"any\" / \"none\""
+                        ))
+                    })?
                     .name
                     .clone(),
             };
@@ -1400,6 +1425,21 @@ fn run(cmd: Cmd) -> Result<i32> {
             Ok(i32::from(
                 findings.iter().any(|f| f.level == doctor::Level::Error),
             ))
+        }
+        Cmd::Log { lines } => {
+            let events = seatwise::runlog::tail(lines);
+            if events.is_empty() {
+                outln!("no hook blocks or warnings recorded yet");
+            }
+            for l in events {
+                outln!("{l}");
+            }
+            outln!(
+                "run logs: {} (the newest {} are kept)",
+                seatwise::paths::contract(&seatwise::runlog::dir()),
+                seatwise::runlog::MAX_RUN_LOGS
+            );
+            Ok(0)
         }
         Cmd::InstallHooks { seats } => {
             let cfg = Config::load()?;
@@ -1808,8 +1848,9 @@ fn run(cmd: Cmd) -> Result<i32> {
         }
         Cmd::Preset(PresetCmd::Show { name }) => {
             let cfg = Config::load()?;
-            let p = seatwise::preset::get(&cfg, &name)
-                .with_context(|| seatwise::preset::unknown(&cfg, &name))?;
+            let p = seatwise::preset::get(&cfg, &name).ok_or_else(|| {
+                seatwise::error::UserError::not_found(seatwise::preset::unknown(&cfg, &name))
+            })?;
             outln!("{}: {}", p.name, p.description);
             outln!(
                 "{}",

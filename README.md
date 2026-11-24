@@ -126,6 +126,7 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat usage [seat]` | 5-hour and weekly limits used, per seat (see below) |
 | `seat doctor [--fix]` | Missing or stale hooks, wrong or unpinned accounts, two seats on one account, `CLAUDE.md` leaking from a parent folder, stray API keys, a seat's folder that holds other seats' folders (one project per folder), an unguarded `~/.codex` |
 | `seat doctor --desktop` | The desktop instances running, and the latest warnings and errors of their shared log, each with the instances that were running at the time (macOS) |
+| `seat log [-n N]` | What the guard blocked or warned about lately (hooks), and where the run logs are |
 | `seat share [seat]` | Copy shared skills, agents, commands into seats (also on every start) |
 | `seat share --adopt [seat]` | First copy the skills tools leave in `~/.claude/skills` and `~/.agents/skills` (no seat reads those) into the shared folder and add them to the seats' `share` |
 | `seat shim install` | A `claude` on PATH that picks the seat by folder, for IDE terminals and tools that start `claude` themselves |
@@ -373,6 +374,11 @@ Org UUIDs, org names, emails, account ids and login tokens are read only from yo
   seat's folders, read seatwise's own repository, or touch folders closed to all seats; that includes `seat unlink
   <other seat's path>`. Change other seats' setup from your own terminal. Commands that name no paths still work,
   such as `seat unlink --missing`, `seat list` and `seat doctor`.
+- **Exit codes** say why a command failed: 1 failure, 2 usage error, 3 refused by the isolation guard (wrong or closed
+  folder, wrong org), 4 no such seat, preset or group. An error may add a `resolution:` line with what to do.
+- **Logs.** Every `seat run` and every failing command writes a run log in `<data dir>/logs` (the newest 50 are kept;
+  a failure ends with `log: <path>`). Hook blocks and warnings go to `hooks.log`; `seat log` shows the latest. Lines
+  hold folder paths and seat names, redacted like all output, and never a session's arguments.
 - **Starting another seat from inside a session** is refused under `strict` when the current folder belongs to the
   current seat: `claude-<other>` checks the folder the same way. Start it from that seat's folder or a shared start
   folder.

@@ -276,7 +276,7 @@ pub fn plan(cfg: &Config, exe: &Path, opts: &Options) -> Result<Plan> {
     // 3. The project's preset.
     if let Some(p) = &opts.preset {
         if p != crate::config::NONE && preset::get(cfg, p).is_none() {
-            bail!("{}", preset::unknown(cfg, p));
+            return Err(crate::error::UserError::not_found(preset::unknown(cfg, p)).into());
         }
         steps.push(step("preset", Status::Change, format!("would become {p}")));
     } else {

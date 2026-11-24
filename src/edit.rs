@@ -112,7 +112,10 @@ impl ConfigFile {
         if self.seat_table(name).is_none() {
             let known = self.seat_labels();
             let known: Vec<&str> = known.iter().map(String::as_str).collect();
-            bail!("{}", crate::suggest::unknown("seat", name, &known));
+            return Err(crate::error::UserError::not_found(crate::suggest::unknown(
+                "seat", name, &known,
+            ))
+            .into());
         }
         Ok(self.seat_table(name).expect("checked above"))
     }
@@ -125,7 +128,10 @@ impl ConfigFile {
                 .filter_map(|t| t.get("name").and_then(|v| v.as_str()).map(String::from))
                 .collect();
             let known: Vec<&str> = known.iter().map(String::as_str).collect();
-            bail!("{}", crate::suggest::unknown("group", name, &known));
+            return Err(crate::error::UserError::not_found(crate::suggest::unknown(
+                "group", name, &known,
+            ))
+            .into());
         }
         Ok(self.group_table(name).expect("checked above"))
     }
@@ -294,7 +300,8 @@ impl ConfigFile {
     }
 
     pub fn set_preset_enabled(&mut self, cfg: &Config, name: &str, on: bool) -> Result<()> {
-        let p = crate::preset::get(cfg, name).with_context(|| crate::preset::unknown(cfg, name))?;
+        let p = crate::preset::get(cfg, name)
+            .ok_or_else(|| crate::error::UserError::not_found(crate::preset::unknown(cfg, name)))?;
         let t = self.table_at(&["preset", name])?;
         if p.builtin && !t.contains_key("profiles") {
             t["description"] = value(p.description.as_str());

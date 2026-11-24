@@ -302,6 +302,76 @@ fn unknown_names_say_what_was_probably_meant() {
 }
 
 #[test]
+fn failures_exit_with_a_code_that_says_why_and_print_a_resolution() {
+    let e = setup();
+    // Refused by the guard: 3, with the way out on its own line.
+    let out = e.seat("proj-b", &["run", "alpha"]).output().unwrap();
+    let t = text(&out);
+    assert_eq!(out.status.code(), Some(3), "{t}");
+    assert!(
+        t.contains("belongs to seat 'b', not 'a'.")
+            && t.contains("\n  resolution: Use: seat run b"),
+        "{t}"
+    );
+    // No such seat / preset: 4.
+    for args in [&["show", "nobody"][..], &["preset", "show", "nothing"]] {
+        let out = e.seat("", args).output().unwrap();
+        assert_eq!(out.status.code(), Some(4), "{}", text(&out));
+    }
+    // Usage error: 2 (clap). Anything else: 1.
+    assert_eq!(
+        e.seat("", &["--bogus"]).output().unwrap().status.code(),
+        Some(2)
+    );
+    let out = e
+        .seat("", &["link", "--from", "/no/such/file"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1), "{}", text(&out));
+}
+
+#[test]
+fn blocks_are_logged_and_failures_name_their_log() {
+    let e = setup();
+    // A failing run leaves a run log and points at it.
+    let out = e.seat("proj-b", &["run", "alpha"]).output().unwrap();
+    let t = text(&out);
+    let line = t.lines().find(|l| l.starts_with("  log: ")).expect(&t);
+    let logs = e.home.join("data/logs");
+    let files: Vec<_> = fs::read_dir(&logs)
+        .unwrap()
+        .map(|f| f.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(files.len(), 1, "{files:?}");
+    assert!(line.contains(&files[0]), "{line} vs {files:?}");
+    let log = read(&logs.join(&files[0]));
+    assert!(
+        log.contains("run seat=a") && log.contains("guard (Strict): ") && log.contains("error: "),
+        "{log}"
+    );
+    // A blocked prompt is recorded in hooks.log, and `seat log` shows it.
+    let blocked = e.hook(
+        "prompt",
+        "b",
+        serde_json::json!({ "cwd": p(&e.home.join("proj-a")), "prompt": "hi" }),
+    );
+    assert_eq!(blocked.status.code(), Some(2));
+    let shown = ok(&e.seat("", &["log"]).output().unwrap());
+    assert!(
+        shown.contains("block prompt seat=b: ") && shown.contains("run logs: "),
+        "{shown}"
+    );
+    // Allowed calls are not logged.
+    let allowed = e.hook(
+        "prompt",
+        "a",
+        serde_json::json!({ "cwd": p(&e.home.join("proj-a")), "prompt": "hi" }),
+    );
+    assert_eq!(allowed.status.code(), Some(0));
+    assert_eq!(read(&logs.join("hooks.log")).lines().count(), 1);
+}
+
+#[test]
 fn version_and_help_probes_run_in_folders_no_seat_owns() {
     let e = setup();
     let t = text(

@@ -59,6 +59,11 @@ fn render(text: &str) -> Cow<'_, str> {
     }
 }
 
+/// `text` with identifiers replaced, whether or not output is being redacted: for what goes into log files.
+pub fn scrub(text: &str) -> String {
+    crate::privacy::redact(&known(), text)
+}
+
 /// Write `text` to standard output.
 pub fn out(text: &str) {
     let text = render(text);
