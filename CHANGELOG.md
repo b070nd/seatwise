@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-11-24
+
 ### Fixed
 - A linked git worktree outside every configured folder (Claude Code's `.claude/worktrees`, an agent tool's own
   worktree folder) belongs to the seat that owns its main checkout: `seat run auto`, `seat owner` and both hooks
@@ -162,7 +164,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/b070nd/seatwise/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/b070nd/seatwise/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/b070nd/seatwise/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/b070nd/seatwise/compare/v0.4.0...v0.4.1
