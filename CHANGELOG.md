@@ -7,6 +7,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- `seat share --adopt [seat]` copies the skills tools leave in `~/.claude/skills` and `~/.agents/skills` (no seat reads
+  those folders) into the shared folder and adds them to the seats' `share` (every Claude Code seat if none is named).
+  `seat doctor` points at it.
+- `seat import projects <file>` reads an older launcher's `projects` file (`<owner> <path>` per line); the same as
+  `seat link --from`, and nothing is written unless every line is valid.
+- `seat doctor --desktop` lists the running desktop instances and the latest warnings and errors of the log they all
+  share, each with the instances that were running when it was written (a line naming a pid goes to that instance).
+- `seat doctor` notes a seat's folder that holds other seats' folders (a tool treating it as one project runs all of it
+  on the outer seat; use one project per folder), and a `~/.codex` no Codex seat uses (Codex sessions that tools start
+  there run without the guard), with the command that adds the seat.
+
 ## [0.4.5] - 2026-11-24
 
 ### Fixed

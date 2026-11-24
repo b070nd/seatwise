@@ -31,6 +31,29 @@ pub fn copy_tree(src: &Path, dst: &Path) -> Result<usize> {
     Ok(1)
 }
 
+/// Skills that tools leave in the agents' global folders (`~/.claude/skills`, `~/.agents/skills`): no seat reads them.
+/// Copies each into the shared folder (as `skills/<name>`) and returns the `share` items that name them.
+pub fn adopt(cfg: &Config) -> Result<Vec<String>> {
+    let home = crate::paths::home();
+    let mut items = Vec::new();
+    for root in [home.join(".claude/skills"), home.join(".agents/skills")] {
+        for entry in fs::read_dir(&root).into_iter().flatten().flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.starts_with('.') {
+                continue;
+            }
+            // A skill may be a link into the tool's own folder: copy what it points at.
+            let src = dunce::canonicalize(entry.path())?;
+            copy_tree(&src, &cfg.shared_dir().join("skills").join(&name))?;
+            let item = format!("skills/{name}");
+            if !items.contains(&item) {
+                items.push(item);
+            }
+        }
+    }
+    Ok(items)
+}
+
 /// Bring a seat's `share` items up to date from the shared folder. Returns notes for the user.
 pub fn apply(cfg: &Config, seat: &Seat) -> Result<Vec<String>> {
     let shared = cfg.shared_dir();

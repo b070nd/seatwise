@@ -148,6 +148,11 @@ enum Cmd {
     },
     /// How much of each seat's 5-hour and weekly limits is used (asks Anthropic with each seat's own login)
     Usage { seats: Vec<String> },
+    /// Bring setup over from another tool
+    Import {
+        #[command(subcommand)]
+        what: ImportCmd,
+    },
     /// Give a folder (default: this one) to a seat, or make it shared ("any") or closed ("none")
     Link {
         #[arg(required_unless_present = "from")]
@@ -189,12 +194,22 @@ enum Cmd {
         /// Apply the fixes doctor knows (hooks, shim)
         #[arg(long)]
         fix: bool,
+        /// Instead: the desktop instances running now, and the recent warnings and errors of the log they all share,
+        /// each with the instances that were running when it was written (macOS)
+        #[arg(long, conflicts_with = "fix")]
+        desktop: bool,
     },
     /// Install or refresh the guard hooks in each seat's settings.json, or remove them where enforcement is off
     /// (all seats if none are named)
     InstallHooks { seats: Vec<String> },
     /// Copy each seat's `share` items from the shared folder now (also done on every start)
-    Share { seats: Vec<String> },
+    Share {
+        seats: Vec<String>,
+        /// First copy the skills tools left in ~/.claude/skills and ~/.agents/skills (no seat reads those) into
+        /// the shared folder, and add them to the seats' `share` (all Claude Code seats if none are named)
+        #[arg(long)]
+        adopt: bool,
+    },
     /// Print shell functions `claude-<seat>` (and `claude`, if enabled); e.g. `eval "$(seat shell-init zsh)"` in ~/.zshrc
     ShellInit { shell: shell::Shell },
     /// A `claude` command on PATH that picks the seat by folder, for IDEs and tools that start claude themselves
@@ -394,6 +409,12 @@ enum SkillsCmd {
     Install { seats: Vec<String> },
     /// Print one skill as it would be installed
     Show { name: String },
+}
+
+#[derive(Subcommand)]
+enum ImportCmd {
+    /// Folder ownership from a list with one `<owner> <path>` per line (an older launcher's `projects` file)
+    Projects { file: PathBuf },
 }
 
 #[derive(Subcommand)]
@@ -1207,6 +1228,13 @@ fn run(cmd: Cmd) -> Result<i32> {
             }
             Ok(i32::from(failed))
         }
+        Cmd::Import {
+            what: ImportCmd::Projects { file },
+        } => run(Cmd::Link {
+            owner: None,
+            path: None,
+            from: Some(file),
+        }),
         Cmd::Link {
             from: Some(file), ..
         } => {
@@ -1353,7 +1381,14 @@ fn run(cmd: Cmd) -> Result<i32> {
             print!("{}", ps::list(&cfg)?);
             Ok(0)
         }
-        Cmd::Doctor { fix } => {
+        Cmd::Doctor { desktop: true, .. } => {
+            let cfg = Config::load()?;
+            for line in seatwise::desktop::log_report(&cfg) {
+                println!("{line}");
+            }
+            Ok(0)
+        }
+        Cmd::Doctor { fix, .. } => {
             let cfg = Config::load()?;
             let mut findings = doctor::check(&cfg, &exe);
             if fix {
@@ -1388,7 +1423,39 @@ fn run(cmd: Cmd) -> Result<i32> {
             }
             Ok(0)
         }
-        Cmd::Share { seats } => {
+        Cmd::Share { seats, adopt: true } => {
+            let cfg = Config::load()?;
+            let items = share::adopt(&cfg)?;
+            if items.is_empty() {
+                println!("no skills in ~/.claude/skills or ~/.agents/skills");
+                return Ok(0);
+            }
+            let mut file = ConfigFile::open()?;
+            let named = pick_seats(&cfg, &seats)?;
+            for seat in named.iter().filter(|s| {
+                s.agent == seatwise::config::Agent::Claude
+                    && (!seats.is_empty() || cfg.is_enabled(s))
+            }) {
+                let mut list = seat.share.clone();
+                for i in &items {
+                    if !list.contains(i) {
+                        list.push(i.clone());
+                    }
+                }
+                let array: toml_edit::Array = list.iter().map(String::as_str).collect();
+                file.set_seat_value(&seat.name, "share", Some(array.into()))?;
+                println!("seat '{}': shares {}", seat.name, items.join(", "));
+            }
+            file.save()?;
+            let cfg = Config::load()?;
+            for seat in pick_seats(&cfg, &seats)? {
+                for n in share::apply(&cfg, seat)? {
+                    println!("{n}");
+                }
+            }
+            Ok(0)
+        }
+        Cmd::Share { seats, .. } => {
             let cfg = Config::load()?;
             for seat in pick_seats(&cfg, &seats)? {
                 let notes = share::apply(&cfg, seat)?;

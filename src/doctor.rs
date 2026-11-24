@@ -318,8 +318,68 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
             )),
         }
     }
+    out.extend(nested_seats(cfg));
+    out.extend(unguarded_codex(cfg));
     out.sort_by_key(|f| f.level);
     out
+}
+
+/// A seat's folder that contains folders of other seats. A tool that treats the outer folder as one project (an
+/// agent orchestrator, an IDE workspace) runs everything in it on the outer seat, and the guard then blocks it in
+/// the inner ones: correct, but confusing.
+fn nested_seats(cfg: &Config) -> Vec<Finding> {
+    let home = paths::home();
+    let norm = |p: &str| folders::normalize(&paths::expand(p), &home);
+    let mut out = Vec::new();
+    for outer in &cfg.folders {
+        let crate::config::Owner::Seat(a) = outer.owner() else {
+            continue;
+        };
+        let ok = folders::key(&norm(&outer.path));
+        let mut inner: Vec<&str> = cfg
+            .folders
+            .iter()
+            .filter_map(|f| match f.owner() {
+                crate::config::Owner::Seat(b) if b != a => {
+                    let k = folders::key(&norm(&f.path));
+                    (k.len() > ok.len() && k.starts_with(&ok)).then_some(b)
+                }
+                _ => None,
+            })
+            .collect();
+        inner.sort();
+        inner.dedup();
+        if !inner.is_empty() {
+            out.push(finding(
+                Level::Info,
+                format!(
+                    "{} belongs to seat '{a}' but holds folders of seat {}: a tool that treats it as one project runs \
+                     all of it on '{a}' and the guard blocks it in the others. Use one project per seat's folder",
+                    paths::contract(&norm(&outer.path)),
+                    inner.iter().map(|s| format!("'{s}'")).collect::<Vec<_>>().join(", ")
+                ),
+            ));
+        }
+    }
+    out
+}
+
+/// `~/.codex` with no Codex seat on it: Codex sessions that tools start (an orchestrator, an IDE) use that login
+/// with none of seatwise's guard.
+fn unguarded_codex(cfg: &Config) -> Vec<Finding> {
+    let dir = paths::home().join(".codex");
+    let covered = cfg.seats.iter().any(|s| {
+        s.agent == crate::config::Agent::Codex
+            && folders::key_string(&s.config_dir()) == folders::key_string(&dir)
+    });
+    if covered || !dir.is_dir() {
+        return Vec::new();
+    }
+    vec![finding(
+        Level::Info,
+        "~/.codex exists but no Codex seat uses it: Codex sessions started by tools (an orchestrator, an IDE) run \
+         there without hooks or folder checks. To guard them: seat add codex --agent codex --config-dir ~/.codex",
+    )]
 }
 
 /// Preset and profile settings the Settings Catalog finds wrong: unknown keys, bad values, keys Claude Code ignores
@@ -418,7 +478,7 @@ fn unused_default_and_logins(cfg: &Config) -> Vec<Finding> {
                     paths::contract(&default_dir),
                     if names.is_empty() { "nothing".into() } else { names.join(", ") },
                     if names.iter().any(|n| n == "skills") {
-                        ". Skills there reach no seat; copy them with `share`"
+                        ". Skills there reach no seat; copy them with `seat share --adopt`"
                     } else {
                         ""
                     }

@@ -246,6 +246,104 @@ fn after_words(s: &str, n: usize) -> Option<(Vec<&str>, &str)> {
     Some((words, rest.trim_start()))
 }
 
+/// `ps` start time (`Sun Nov 22 22:59:18 2026`) as `2026-11-22 22:59:18`, which sorts like the log's timestamps.
+fn iso_start(lstart: &str) -> Option<String> {
+    let w: Vec<&str> = lstart.split_whitespace().collect();
+    let [_, mon, day, time, year] = w[..] else {
+        return None;
+    };
+    let month = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ]
+    .iter()
+    .position(|m| *m == mon)?
+        + 1;
+    Some(format!(
+        "{year}-{month:02}-{:02} {time}",
+        day.parse::<u32>().ok()?
+    ))
+}
+
+/// The warnings and errors in `log`, each with the instances that were running when it was written. All instances
+/// write to one file with no pid or data folder on a line, so a line naming a pid is attributed to it, and any other
+/// line lists every instance started before it. `who` is (pid, name, start in log time).
+fn attribute(log: &str, who: &[(u32, String, String)], max: usize) -> Vec<String> {
+    let mut out = Vec::new();
+    for line in log.lines() {
+        let Some(stamp) = line.get(..19) else {
+            continue;
+        };
+        if !(line[19..].starts_with(" [warn]") || line[19..].starts_with(" [error]")) {
+            continue;
+        }
+        let digits: Vec<&str> = line.split(|c: char| !c.is_ascii_digit()).collect();
+        let named: Vec<&str> = who
+            .iter()
+            .filter(|(pid, ..)| digits.contains(&pid.to_string().as_str()))
+            .map(|(_, n, _)| n.as_str())
+            .collect();
+        let running: Vec<&str> = who
+            .iter()
+            .filter(|(.., start)| start.as_str() <= stamp)
+            .map(|(_, n, _)| n.as_str())
+            .collect();
+        let tag = if !named.is_empty() {
+            format!("pid of {}", named.join(", "))
+        } else if running.is_empty() {
+            "no instance running now was up yet".to_string()
+        } else {
+            format!("running: {}", running.join(", "))
+        };
+        let text: String = line.chars().take(170).collect();
+        out.push(format!("  {text}\n      ({tag})"));
+    }
+    let skip = out.len().saturating_sub(max);
+    out.split_off(skip)
+}
+
+/// `seat doctor --desktop`: the running instances, and the recent problems in their shared log.
+pub fn log_report(cfg: &Config) -> Vec<String> {
+    if !cfg!(target_os = "macos") {
+        return vec!["the desktop app report is for macOS".into()];
+    }
+    let mut out = Vec::new();
+    let instances = running(cfg);
+    if instances.is_empty() {
+        out.push("no Claude desktop instance is running".into());
+    }
+    let mut who = Vec::new();
+    for i in &instances {
+        let name = i.seat.clone().unwrap_or_else(|| "no seat".into());
+        out.push(format!("{name}: {}", i.label()));
+        if let Some(start) = iso_start(&i.started) {
+            who.push((i.pid, name, start));
+        }
+    }
+    let log = crate::paths::home().join("Library/Logs/Claude/main.log");
+    // The tail is enough: the file is large and the question is what went wrong lately.
+    let text = std::fs::File::open(&log)
+        .ok()
+        .and_then(|mut f| {
+            use std::io::{Read, Seek, SeekFrom};
+            let len = f.metadata().ok()?.len();
+            f.seek(SeekFrom::Start(len.saturating_sub(1 << 20))).ok()?;
+            let mut b = Vec::new();
+            f.read_to_end(&mut b).ok()?;
+            Some(String::from_utf8_lossy(&b).into_owned())
+        })
+        .unwrap_or_default();
+    let found = attribute(&text, &who, 30);
+    out.push(format!(
+        "\n{}: one file for every instance; last warnings and errors, with the instances running at the time",
+        crate::paths::contract(&log)
+    ));
+    if found.is_empty() {
+        out.push("  none".into());
+    }
+    out.extend(found);
+    out
+}
+
 /// The desktop instances running now.
 pub fn running(cfg: &Config) -> Vec<Instance> {
     let apps = apps(cfg);
@@ -555,6 +653,34 @@ pub fn status(cfg: &Config, exe: &Path) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn log_lines_are_matched_to_the_instances_running_at_the_time() {
+        assert_eq!(
+            iso_start("Sun Nov  2 22:59:18 2026").as_deref(),
+            Some("2026-11-02 22:59:18")
+        );
+        let who = vec![
+            (100, "work".to_string(), "2026-11-22 10:00:00".to_string()),
+            (
+                200,
+                "frontier".to_string(),
+                "2026-11-22 12:00:00".to_string(),
+            ),
+        ];
+        let log = "2026-11-22 09:00:00 [error] early\n\
+                   2026-11-22 11:00:00 [info] fine\n\
+                   2026-11-22 11:00:00 [warn] only work was up\n\
+                   2026-11-22 13:00:00 [error] renderer 200 crashed\n\
+                   2026-11-22 13:00:01 [warn] both were up\n";
+        let out = attribute(log, &who, 10);
+        assert_eq!(out.len(), 4);
+        assert!(out[0].contains("no instance running now was up yet"));
+        assert!(out[1].contains("running: work)"));
+        assert!(out[2].contains("pid of frontier"));
+        assert!(out[3].contains("running: work, frontier"));
+        assert_eq!(attribute(log, &who, 1).len(), 1);
+    }
 
     #[test]
     fn reads_data_folders_and_environment_from_ps() {

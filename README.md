@@ -114,6 +114,7 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat login <seat>` / `seat pin <seat>` | Sign a seat in; record its org and email so a wrong login is caught |
 | `seat link <seat\|any\|none> [path]`, `seat unlink`, `seat owner` | Give folders to seats |
 | `seat link --from <file>` | Many at once: one `<owner> <path>` per line; nothing is written unless every line is valid |
+| `seat import projects <file>` | The same, for an older launcher's `projects` file (`<owner> <path>` lines) |
 | `seat unlink --missing` | Remove entries whose folder no longer exists (names no paths, so it works inside a guarded session) |
 | `claude-<seat>`, `seat run <seat\|auto>` | Start Claude Code on a seat |
 | `seat list` | Every seat: account, identity check, enforcement, hooks, link mode, folders |
@@ -123,8 +124,10 @@ Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config
 | `seat compact [seat\|all] [tier]` | When Claude Code compacts, enforced per seat: `sharp` (150K), `standard` (400K), `lazy` (the whole window), a token count, or `off`; without a tier, show it |
 | `seat profile <seat> [name] [--usage]` | The seat's plan, and the usage profile that fits it (`light`, `balanced`, `heavy`, or your own); with a name, apply it. `seat login` offers it right after signing in |
 | `seat usage [seat]` | 5-hour and weekly limits used, per seat (see below) |
-| `seat doctor [--fix]` | Missing or stale hooks, wrong or unpinned accounts, two seats on one account, `CLAUDE.md` leaking from a parent folder, stray API keys |
+| `seat doctor [--fix]` | Missing or stale hooks, wrong or unpinned accounts, two seats on one account, `CLAUDE.md` leaking from a parent folder, stray API keys, a seat's folder that holds other seats' folders (one project per folder), an unguarded `~/.codex` |
+| `seat doctor --desktop` | The desktop instances running, and the latest warnings and errors of their shared log, each with the instances that were running at the time (macOS) |
 | `seat share [seat]` | Copy shared skills, agents, commands into seats (also on every start) |
+| `seat share --adopt [seat]` | First copy the skills tools leave in `~/.claude/skills` and `~/.agents/skills` (no seat reads those) into the shared folder and add them to the seats' `share` |
 | `seat shim install` | A `claude` on PATH that picks the seat by folder, for IDE terminals and tools that start `claude` themselves |
 | `seat run --with <profile> <seat>` | Start with a usage profile for this session only (passed as `--settings`) |
 | `seat desktop [seat]` | Start the desktop app on a seat (macOS), unless it already runs; without a seat, the running instances |

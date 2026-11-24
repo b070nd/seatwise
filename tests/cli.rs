@@ -221,6 +221,65 @@ fn a_worktree_outside_every_folder_runs_on_its_main_checkouts_seat() {
 }
 
 #[test]
+fn share_adopt_copies_tool_skills_into_the_seats_and_import_reads_a_projects_file() {
+    let e = setup_with("");
+    let skill = e.home.join(".claude/skills/tool-x");
+    fs::create_dir_all(&skill).unwrap();
+    fs::write(skill.join("SKILL.md"), "tool").unwrap();
+    let t = ok(&e.seat("", &["share", "--adopt", "a"]).output().unwrap());
+    assert!(t.contains("seat 'a': shares skills/tool-x"), "{t}");
+    assert_eq!(
+        fs::read_to_string(e.home.join(".seat-a/skills/tool-x/SKILL.md")).unwrap(),
+        "tool"
+    );
+    assert!(
+        !e.home.join(".seat-b/skills/tool-x").exists(),
+        "only the named seat"
+    );
+    assert!(read(&e.config).contains("skills/tool-x"));
+
+    fs::write(
+        e.home.join("projects"),
+        format!(
+            "# old launcher\nb {}\nnone {}\n",
+            p(&e.home.join("elsewhere")),
+            p(&e.home.join("closed"))
+        ),
+    )
+    .unwrap();
+    ok(&e
+        .seat("", &["import", "projects", &p(&e.home.join("projects"))])
+        .output()
+        .unwrap());
+    assert!(
+        ok(&e
+            .seat("", &["owner", &p(&e.home.join("elsewhere"))])
+            .output()
+            .unwrap())
+        .contains("b")
+    );
+}
+
+#[test]
+fn doctor_flags_nested_seat_folders_and_an_unguarded_codex_home() {
+    let e = setup_with("");
+    ok(&e
+        .seat("", &["link", "b", &p(&e.home.join("proj-a/nested"))])
+        .output()
+        .unwrap());
+    fs::create_dir_all(e.home.join(".codex")).unwrap();
+    let t = text(&e.seat("", &["doctor"]).output().unwrap());
+    assert!(
+        t.contains("belongs to seat 'a' but holds folders of seat 'b'"),
+        "{t}"
+    );
+    assert!(
+        t.contains("~/.codex exists but no Codex seat uses it"),
+        "{t}"
+    );
+}
+
+#[test]
 fn version_and_help_probes_run_in_folders_no_seat_owns() {
     let e = setup();
     let t = text(
