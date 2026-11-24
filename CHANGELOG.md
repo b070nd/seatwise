@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- The README has a full usage reference: every command and its flags, grouped by task, with examples, and a set of
+  real-life walkthroughs. It replaces the short command table.
+
 ## [0.8.0] - 2026-11-24
 
 ### Added

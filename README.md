@@ -105,51 +105,524 @@ PowerShell: add `seat shell-init powershell | Out-String | Invoke-Expression` to
 
 Then turn on isolation: set `enforcement = "warn"` (or `"strict"`) in the config and run `seat install-hooks`.
 
-## Commands
+## Usage
 
-| | |
+The examples below follow one setup: a developer with a client seat `acme` (alias `work`, on the client's Team plan)
+and a `personal` seat (their own Pro plan). Client repos live under `~/code/acme`, their own under `~/code/oss`.
+
+How every command reads its arguments:
+
+- A `<seat>` can be its name or any of its aliases (`acme` or `work`).
+- A `[path]` left out means the current folder.
+- Commands that take `[seats]...` act on every seat when none is named.
+- `seat <command> --help` prints the flags of any command.
+- Errors start with `seat:`, and most add a `resolution:` line with the command that fixes them. Exit codes: 0 done;
+  1 failed (or `doctor` found an error); 2 bad usage; 3 refused by the guard; 4 no such seat, preset or group.
+
+### Command index
+
+| Area | Commands |
 |---|---|
-| `seat init` | Propose a config from the config folders on this machine: seats, pinned accounts, folders from session history |
-| `seat add <name> [--from <seat>]` | New seat (or adopt a folder with `--config-dir`); `--from` copies another seat's setup, never its login |
-| `seat login <seat>` / `seat pin <seat>` | Sign a seat in; record its org and email so a wrong login is caught |
-| `seat link <seat\|any\|none> [path]`, `seat unlink`, `seat owner` | Give folders to seats |
-| `seat link --from <file>` | Many at once: one `<owner> <path>` per line; nothing is written unless every line is valid |
-| `seat import projects <file>` | The same, for an older launcher's `projects` file (`<owner> <path>` lines) |
-| `seat unlink --missing` | Remove entries whose folder no longer exists (names no paths, so it works inside a guarded session) |
-| `claude-<seat>`, `seat run <seat\|auto>` | Start Claude Code on a seat |
-| `seat list` | Every seat: account, identity check, enforcement, hooks, link mode, folders |
+| [Set up seats](#set-up-seats) | `init`, `add`, `login`, `pin`, `config-path`, `enable`, `disable` |
+| [Give folders to seats](#give-folders-to-seats) | `link`, `unlink`, `owner`, `import projects` |
+| [Start sessions](#start-sessions) | `run`, `shell-init`, `shim`, `completions` |
+| [Turn on isolation](#turn-on-isolation) | `install-hooks`, `log`, `doctor` |
+| [See what's going on](#see-whats-going-on) | `list`, `show`, `projects`, `ps`, `explain`, `usage` |
+| [Plans, usage and compaction](#plans-usage-and-compaction) | `profile`, `compact`, `run --with` |
+| [Share skills and agents](#share-skills-and-agents) | `share`, `skills`, `home` |
+| [Use-case presets](#use-case-presets) | `preset`, `group`, `settings` |
+| [Desktop app and terminals](#desktop-app-and-terminals) | `desktop`, `term`, `hybrid`, `url` |
+| [Keep settings in check](#keep-settings-in-check) | `sentinel`, `sync restore`, `tui` |
+| [For tools and scripts](#for-tools-and-scripts) | `--json`, `hook` |
+
+### Set up seats
+
+| Command | What it does |
+|---|---|
+| `seat init [--print] [--force]` | Finds the Claude Code config folders on this machine and proposes a config: one seat per folder, each one's account, and folders taken from session history. Writes it when there's no config yet. `--print` only shows it; `--force` replaces an existing config |
+| `seat add <name> [--config-dir d] [--alias a]... [--from seat] [--agent claude\|codex]` | Adds a seat. Its config folder defaults to `~/.claude-<name>`, and an existing folder is adopted as is. `--from` copies another seat's settings, `CLAUDE.md`, skills, agents, commands and plugins, never its login |
+| `seat login <seat>` | Runs `claude auth login` in the seat's environment, then pins the account if none is pinned yet, and offers the usage profile that fits the plan |
+| `seat pin <seat>` | Records the org and email the seat is signed into, so a later login to the wrong one is caught |
+| `seat config-path` | Prints where the config file is |
+| `seat enable <target>` / `seat disable <target>` | Turns a seat (`acme`), agent (`agent:codex`), preset (`preset:review`), folder group (`group:legacy`) or the `sentinel` on or off. The config stays |
+
+A first setup on a machine that already has two Claude config folders:
+
+```sh
+seat init --print             # read the proposal first
+seat init                     # write it
+seat doctor                   # anything still to fix
+```
+
+A new seat for a new client, starting from the setup of an existing seat but with its own login:
+
+```sh
+seat add globex --alias gx --from acme
+seat login globex             # browser sign-in; pins the org and email afterwards
+```
+
+The sign-in page opens wherever that seat's `link` setting points, so you can sign in from the client's browser
+profile.
+
+Adopting a config folder that's already there, such as a second Codex home:
+
+```sh
+seat add gpt --agent codex --config-dir ~/.codex-gpt
+```
+
+Taking a seat out of use while a contract is paused, without losing its config:
+
+```sh
+seat disable globex           # its folders stay assigned, but it can't start
+seat enable globex
+```
+
+### Give folders to seats
+
+| Command | What it does |
+|---|---|
+| `seat link <seat\|any\|none> [path]` | Gives a folder to a seat. `any` makes it a shared start folder (you pick the seat there); `none` closes it to every seat under `warn`/`strict` |
+| `seat link --from <file>` | Many at once: one `<owner> <path>` per line, `#` comments allowed. Nothing is written unless every line is valid |
+| `seat unlink [path]` | Removes a folder's entry |
+| `seat unlink --missing` | Removes every entry whose folder is gone, including folders on a drive that isn't mounted. It names no paths, so it works inside a guarded session too |
+| `seat owner [path] [--json]` | Which seat owns a folder, and which seat `seat run auto` starts there |
+| `seat import projects <file>` | The same as `link --from`, for an older launcher's `projects` file |
+
+The longest matching path wins, so a subfolder can belong to a different seat than its parent:
+
+```sh
+seat link acme ~/code/acme
+seat link personal ~/code/oss
+seat link personal ~/code/acme/forks/my-patch   # a fork you maintain yourself
+seat link any ~/code/sandbox                    # throwaway experiments, either seat
+seat link none ~/Documents/contracts            # no agent touches these
+```
+
+```console
+$ seat owner ~/code/acme/billing
+/Users/you/code/acme/billing: acme
+$ seat owner ~/code/scratch
+/Users/you/code/scratch: unassigned
+```
+
+Moving many folders over in one go:
+
+```sh
+cat > folders.txt <<'EOF'
+# client work
+acme     ~/code/acme
+acme     ~/work/acme-infra
+personal ~/code/oss
+any      ~/code/sandbox
+EOF
+seat link --from folders.txt
+```
+
+Cleaning up after deleting old checkouts:
+
+```sh
+seat unlink --missing
+```
+
+### Start sessions
+
+| Command | What it does |
+|---|---|
+| `seat run <seat\|auto> [args]...` | Starts Claude Code (or Codex) on a seat, in the current folder. Everything after the seat goes to the agent unchanged. `auto` picks the seat that owns the folder |
+| `seat run --with <profile> <seat>` | Adds a usage profile for this one session (repeatable), passed as `--settings` |
+| `seat run --home <seat>` | Starts in the seat's home repo |
+| `claude-<seat>` / `claude-<alias>` | The same as `seat run <seat>`, defined by `seat shell-init`. Codex seats get `codex-<seat>`, and on macOS the desktop app gets `claude-desktop-<seat>` |
+| `seat shell-init <zsh\|bash\|fish\|powershell>` | Prints those shell functions. With `shell.override_claude = true` it also defines a plain `claude` that picks the seat by folder |
+| `seat shim install` / `seat shim uninstall` | A `claude` command on PATH that picks the seat by folder, for IDEs and tools that start `claude` themselves |
+| `seat completions <shell>` | Shell completions (bash, elvish, fish, powershell, zsh) |
+
+Put the shell functions in your shell's startup file once:
+
+```sh
+echo 'eval "$(seat shell-init zsh)"' >> ~/.zshrc
+seat completions zsh > ~/.zfunc/_seat     # optional: tab completion
+```
+
+Then start sessions the way you'd start `claude`, with any of its flags:
+
+```sh
+cd ~/code/acme/billing
+claude-acme                               # interactive session on the client seat
+claude-work --resume                      # same seat, by its alias
+claude-acme -p "summarize the open TODOs" # one-shot: prints the answer and exits
+seat run auto                             # whichever seat owns this folder
+seat run --with experimental acme         # this session only: Claude Code's experimental features
+```
+
+`--with` goes before the seat name. Anything after the name goes to Claude Code.
+
+Starting on the wrong seat is caught before the agent starts. Under `strict` it is refused:
+
+```console
+$ cd ~/code/acme/billing && claude-personal
+seat: /Users/you/code/acme/billing belongs to seat 'acme', not 'personal'.
+  resolution: Use: seat run acme
+```
+
+Under `warn` the same message is printed as `seat: warning: ...` and the session starts anyway.
+
+IDEs such as VS Code and JetBrains start `claude` themselves, so the shell functions never run. Install the shim, and
+those IDEs get the right seat per project too:
+
+```sh
+seat shim install         # then put the folder it prints first on PATH
+seat doctor               # confirms the shim is the `claude` found first
+```
+
+### Turn on isolation
+
+Isolation is off until you choose a level, globally or per seat:
+
+```toml
+enforcement = "warn"        # every seat
+
+[[seat]]
+name = "acme"
+enforcement = "strict"      # this seat only
+```
+
+| Level | Starting in another seat's folder | Its prompts and tool calls |
+|---|---|---|
+| `off` | allowed; folders only pick the seat | not checked, no hooks installed |
+| `warn` | warns | prompting warns; touching another seat's files asks you first |
+| `strict` | refused | blocked |
+
+A seat signed into the wrong org always gets a warning, and under `strict` it is refused.
+
+| Command | What it does |
+|---|---|
+| `seat install-hooks [seats]...` | Installs or refreshes the guard hooks in each seat's `settings.json`, or removes them where enforcement is off. `seat run` also puts missing hooks back on a guarded seat, and a `strict` seat that can't get them doesn't start |
+| `seat log [-n N]` | What the hooks blocked or warned about lately (20 events by default), and where the run logs are |
+| `seat doctor [--fix]` | Everything that weakens isolation or stops a seat from working; `--fix` installs or removes hooks and the shim |
+
+```console
+$ seat install-hooks
+seat 'acme': hooks installed in /Users/you/.claude-acme/settings.json (enforcement: strict)
+seat 'personal': hooks installed in /Users/you/.claude-personal/settings.json (enforcement: warn)
+```
+
+On a `strict` seat, the hooks stop the session from:
+
+- reading, editing or searching another seat's folders, through Claude's own tools or a shell command;
+- running a shell command that sets or clears the guard's variables, such as `SEATWISE_FORCE=1 claude -p hi` or
+  `env -u CLAUDE_CONFIG_DIR ...`;
+- taking any prompt while the seat is signed into the wrong org.
+
+```sh
+seat log -n 5             # the last five things the guard stepped in on
+```
+
+In your own terminal, outside any agent session, `SEATWISE_FORCE=1 seat run personal` starts a seat in a folder it
+doesn't own, for the rare times you mean to. Inside an agent session, a hook, or a script without a terminal, the
+variable is ignored. The hooks still check every prompt and tool call of a forced session.
+
+Doctor checks for:
+
+- missing or stale hooks;
+- wrong or unpinned accounts, and two seats on one account;
+- `CLAUDE.md` leaking in from a parent folder;
+- stray API keys;
+- a seat's folder that holds other seats' folders;
+- an unguarded `~/.codex`;
+- seats with enforcement off next to guarded ones.
+
+```console
+$ seat doctor
+error  seat 'acme': its hooks are from a seatwise before hook contracts (this one speaks 1) [--fix]
+$ seat doctor --fix
+```
+
+`seat doctor --fix` repairs every finding marked `[--fix]`. Doctor exits 1 while any error is left, so it also works as
+a check in a script.
+
+### See what's going on
+
+| Command | What it does |
+|---|---|
+| `seat list [--json]` | Every seat: config folder, account, plan, identity check, enforcement, hooks, link mode, profile, folders |
 | `seat show <seat> [--json]` | One seat in full: account, plan, identity, isolation, links, desktop app, and its projects |
 | `seat projects [--json]` | Every project folder: its seat, preset, sessions and when it was last used |
-| `seat ps` | Claude Code sessions running now, by seat |
-| `seat compact [seat\|all] [tier]` | When Claude Code compacts, enforced per seat: `sharp` (150K), `standard` (400K), `lazy` (the whole window), a token count, or `off`; without a tier, show it |
-| `seat profile <seat> [name] [--usage]` | The seat's plan, and the usage profile that fits it (`light`, `balanced`, `heavy`, or your own); with a name, apply it. `seat login` offers it right after signing in |
-| `seat usage [seat]` | 5-hour and weekly limits used, per seat (see below) |
-| `seat doctor [--fix]` | Missing or stale hooks, wrong or unpinned accounts, two seats on one account, `CLAUDE.md` leaking from a parent folder, stray API keys, a seat's folder that holds other seats' folders (one project per folder), an unguarded `~/.codex` |
-| `seat doctor --desktop` | The desktop instances running, and the latest warnings and errors of their shared log, each with the instances that were running at the time (macOS) |
-| `seat log [-n N]` | What the guard blocked or warned about lately (hooks), and where the run logs are |
-| `seat share [seat]` | Copy shared skills, agents, commands into seats (also on every start) |
-| `seat share --adopt [seat]` | First copy the skills tools leave in `~/.claude/skills` and `~/.agents/skills` (no seat reads those) into the shared folder and add them to the seats' `share` |
-| `seat shim install` | A `claude` on PATH that picks the seat by folder, for IDE terminals and tools that start `claude` themselves |
-| `seat run --with <profile> <seat>` | Start with a usage profile for this session only (passed as `--settings`) |
-| `seat desktop [seat]` | Start the desktop app on a seat (macOS), unless it already runs; without a seat, the running instances |
-| `seat term [--seat s] [--with p] [--dir d] [--print]` | New terminal window running the seat in a project; from inside a session it takes that session's seat and project |
-| `seat hybrid [--check] [--json] [--link] [--preset p] [--with p]` | Set up the command line for this project next to the desktop app, then open a terminal there; `--json` prints the plan and its open choices |
-| `seat skills install [seat]` / `seat skills show <name>` | Install the seatwise skills into seats: the `seatwise` plugin on Claude seats (`/seatwise:hybrid`, `/seatwise:terminal`, `/seatwise:status`, `/seatwise:home`) |
-| `seat home init <seat> [path]` / `seat home sync` | Create or adopt a seat's home repo; refresh its pointers. `seat run --home <seat>` starts there |
-| `seat tui` | Seat and project cards, a preset editor, and switches for agents, groups and general options; `w` writes, keeping comments |
-| `seat enable/disable <target>` | A seat, `agent:claude\|codex`, `preset:<name>`, `group:<name>` or `sentinel` |
-| `seat preset list` / `seat preset show <name>` | Use-case presets and their resolved settings |
-| `seat preset new <name> [--from p]` / `seat preset edit <name>` | Build or change a preset step by step; only valid choices are taken |
-| `seat preset set\|unset <name> <key> [value]` / `seat preset options <name> [words]` | Change one setting of a preset; what it can take now |
-| `seat settings search [words] [--experimental]` | Every Claude Code setting and environment variable, from the settings catalog |
-| `seat settings show <key>` / `seat settings check <preset>` | What a setting does and where Claude Code honors it; check a preset or profile |
-| `seat group add [folder]` / `list` / `remove` | Give folders a preset; asks for preset and apply mode on a terminal |
-| `seat explain [folder]` | What a session there runs with: group, preset, each settings layer, and which layer set each value |
-| `seat sentinel [--here]` / `install` / `rules` | Find settings worth changing; `install` schedules it every `sentinel.interval` |
-| `seat completions <shell>` | Shell completions |
+| `seat ps [--json]` | The agent sessions running now, by seat, with each one's settings fingerprint |
+| `seat explain [path] [--seat s] [--with p] [--json]` | What a session in a folder would run with: group, preset, each settings layer, and which layer set each value |
+| `seat usage [seats]...` | How much of each seat's 5-hour and weekly limits is used (see [Plans and usage](#plans-and-usage)) |
 
-`owner`, `list`, `ps`, `explain` and `doctor` take `--json`, for tools that start agent sessions themselves. The
-schema, the exit codes and how to start sessions from an orchestrator: [docs/json.md](docs/json.md).
+```console
+$ seat list
+SEAT         CONFIG              ACCOUNT  PLAN           IDENTITY  ENFORCE  HOOKS  LINKS    PROFILE   FOLDERS
+acme (work)  ~/.claude-acme      ...      Team standard  ok        strict   ok     firefox  balanced  2
+personal     ~/.claude-personal  ...      Pro            ok        warn     ok     system   light     2
+```
+
+In the `IDENTITY` column:
+
+- `ok`: the seat is signed into its pinned org and email.
+- `WRONG`: it is signed into a different one.
+- `not pinned`: `seat pin` hasn't run yet.
+
+`HOOKS` shows `MISSING` or `stale` when the guard can't do its job.
+
+Before you start a long task, check which sessions are already running and on which seat:
+
+```sh
+seat ps
+```
+
+When a session runs with a model or permission mode you didn't expect, ask where it came from:
+
+```sh
+seat explain ~/code/acme/billing
+```
+
+It prints every settings layer in order (yours, the project's, the preset's, seatwise's) and, for each value, the layer
+that set it.
+
+Before a long refactor, check how much of this week's limit is left:
+
+```sh
+seat usage acme
+```
+
+### Plans, usage and compaction
+
+| Command | What it does |
+|---|---|
+| `seat profile <seat> [name] [--usage]` | Shows the seat's plan and the usage profile that fits it (`light`, `balanced`, `heavy`, or your own); with a name, applies it to the seat's `settings.json`. `--usage` also weighs this week's usage |
+| `seat compact [seat\|all] [sharp\|standard\|lazy\|<tokens>\|off]` | When Claude Code compacts the conversation, enforced per seat. Without a value, shows it |
+
+```sh
+seat profile personal                 # Pro: suggests light
+seat profile acme heavy               # the client is on Team premium: use it
+seat profile acme --usage             # one step lighter when this week is mostly used
+seat compact acme sharp               # compact at 150K tokens, the sharpest
+seat compact all standard             # every seat that sets none of its own
+seat compact personal 250k
+seat run --with lazy acme             # one long session that compacts as late as it can
+```
+
+More in [Plans and usage](#plans-and-usage) and [Compaction tiers](#compaction-tiers).
+
+### Share skills and agents
+
+| Command | What it does |
+|---|---|
+| `seat share [seats]...` | Copies each seat's `share` items (skills, agents, commands) from the shared folder now. Also done on every start |
+| `seat share --adopt [seats]...` | First moves the skills that tools leave in `~/.claude/skills` and `~/.agents/skills`, which no seat reads, into the shared folder, and adds them to the seats' `share` |
+| `seat skills install [seats]...` | Installs the seatwise skills as the `seatwise` plugin: `/seatwise:hybrid`, `/seatwise:terminal`, `/seatwise:status`, `/seatwise:home` |
+| `seat skills show <name>` | Prints one of those skills as it would be installed |
+| `seat home init <seat> [path]` | Creates or adopts the seat's home repo (its skills, `AGENTS.md`, and pointers to its other repos) and gives it to the seat |
+| `seat home sync [seats]...` | Rewrites the home repo's "Other repos" pointers from the seat's folders |
+
+A code-review skill you wrote once, used by both seats:
+
+```toml
+[[seat]]
+name = "acme"
+share = ["skills/code-review", "agents"]
+```
+
+```sh
+seat share                    # copy it in now instead of on the next start
+```
+
+A skill installer dropped files into `~/.claude/skills`, where no seat looks:
+
+```sh
+seat share --adopt
+```
+
+A home repo, so one session on the client seat knows about all of the client's repos:
+
+```sh
+seat home init acme ~/code/acme/home
+seat run --home acme
+```
+
+### Use-case presets
+
+| Command | What it does |
+|---|---|
+| `seat preset list` / `seat preset show <name>` | Every preset (the built-in `explore`, `build`, `review` and `quick`, and your own), and one preset's resolved settings |
+| `seat preset new <name> [--from p] [--description d]` | Builds a preset step by step; only valid choices are taken |
+| `seat preset edit <name>` | Changes one the same way, keeping comments in the config |
+| `seat preset set <name> <key> <value>` / `seat preset unset <name> <key>` | Changes one setting or environment variable; refused when Claude Code wouldn't take it there |
+| `seat preset profiles <name> [profiles]...` | The usage profiles a preset builds on, in order; none clears them |
+| `seat preset options <name> [words]... [--experimental]` | What the preset can take now, with values |
+| `seat group add [path] [--name n] [--preset p\|none] [--apply session\|project] [--sources user,local]` | Gives a folder a preset. On a terminal it asks for what isn't given |
+| `seat group list` / `seat group remove <name>` | Folder groups |
+| `seat settings search [words]... [--experimental] [--env] [--all]` | Every Claude Code setting and environment variable, from the settings catalog |
+| `seat settings show <key>` | What a setting does, where Claude Code honors it, and how to set it in a preset |
+| `seat settings check [name] [--file f] [--target session\|local\|user]` | Checks a preset, profile or settings JSON file against the catalog |
+
+In client repos where you mostly review pull requests, start sessions in plan mode with the heavy profile:
+
+```sh
+seat group add ~/code/acme --name acme-review --preset review
+seat explain ~/code/acme/billing      # confirm: preset review, permission mode plan
+```
+
+For one legacy repo inside it whose committed `.claude/settings.json` you don't trust:
+
+```sh
+seat group add ~/code/acme/legacy --name legacy --preset none --sources user,local
+```
+
+Your own preset for infrastructure work, built one setting at a time from a script:
+
+```sh
+seat preset new ops --from build --description "Infra: asks before every edit"
+seat preset set ops permissions.defaultMode default
+seat preset options ops effort        # which effort values it can take
+seat settings check ops
+```
+
+Finding a setting you half remember:
+
+```sh
+seat settings search thinking
+seat settings show CLAUDE_CODE_EXPERIMENTAL_CODE_MODE
+```
+
+More in [Presets and folder groups](#presets-and-folder-groups).
+
+### Desktop app and terminals
+
+| Command | What it does |
+|---|---|
+| `seat desktop [seat]` | Starts the Claude desktop app on a seat (macOS), with its own data folder, unless it already runs. Without a seat, lists the running instances |
+| `seat doctor --desktop` | The desktop instances running, and recent warnings and errors from their shared log, each with the instances that were running then |
+| `seat term [--seat s] [--dir d] [--with p] [--home] [--print] [-- args]` | Opens a terminal window running the seat's CLI in a project. Inside a session it takes that session's seat and project |
+| `seat hybrid [--seat s] [--dir d] [--link] [--preset p] [--with p] [--check] [--no-open] [--print] [--json]` | Sets up the CLI side of a project next to the desktop app (folder, skills, preset), then opens a terminal on the same seat |
+| `seat url [--copy] <url>` | Opens a link the way the current seat's `link` setting says. Inside sessions, `BROWSER` points here |
+
+The client's desktop app and your own, side by side, each with its own login:
+
+```sh
+seat desktop acme
+seat desktop personal
+seat desktop                  # which instances are running now
+```
+
+When you're chatting in the desktop app and need the CLI for a long test run on the same project:
+
+```sh
+seat hybrid --check                   # what's set up already, changing nothing
+seat hybrid --link --preset build     # give it to the seat, add a preset, open the terminal
+seat term --print                     # just print the command, for your own terminal app
+```
+
+Inside the desktop app, `/seatwise:terminal` or `/seatwise:hybrid` does the same. More in
+[Desktop app, terminal and home repos](#desktop-app-terminal-and-home-repos).
+
+### Keep settings in check
+
+| Command | What it does |
+|---|---|
+| `seat sentinel [seats]... [--here] [--notify] [--quiet]` | Looks for settings that cost more than they need to. It reports and never changes anything |
+| `seat sentinel rules` | The rules it checks |
+| `seat sentinel install [--dry-run]` / `seat sentinel uninstall` | Runs it every `sentinel.interval` in the background (launchd, a systemd user timer, or Task Scheduler) |
+| `seat sync restore <seat>` | Swaps the files listed in `track` back to their previous snapshot; run it again to undo |
+| `seat tui` | Full-screen settings: seats, agents, presets, folder groups and the sentinel. `w` writes, keeping comments |
+
+```sh
+seat sentinel --here                  # just this project and its seat
+seat sentinel install --dry-run       # see the schedule before installing it
+```
+
+Sessions ran `/model` and answered "always allow" one too many times, and the seat's `settings.json` drifted. With
+`track = ["settings.json", "CLAUDE.md"]` in the config, every start snapshots those files and reports a change:
+
+```sh
+seat sync restore acme                # back to the last snapshot
+seat sync restore acme                # changed your mind: swap again
+```
+
+### For tools and scripts
+
+`owner`, `list`, `ps`, `explain` and `doctor` take `--json` for orchestrators and scripts that start agent sessions
+themselves. The schema, the exit codes and how an orchestrator should start sessions are in [docs/json.md](docs/json.md).
+
+```sh
+# which seat should a worker start in this checkout?
+seat owner ~/code/acme/billing --json
+
+# a scheduled check that the setup is still sound
+seat doctor --json > doctor.json || echo "seatwise found problems"
+```
+
+`seat hook prompt` and `seat hook tool` are the guard hooks themselves. `install-hooks` writes them into each seat's
+`settings.json` and Claude Code runs them, so you never call them by hand.
+
+## Real-life examples
+
+**A second client starts Monday.** You want its sessions to never see the first client's code:
+
+```sh
+seat add globex --from acme           # same skills and settings, its own login
+seat login globex
+seat link globex ~/code/globex
+git clone https://git.example.com/globex/api.git ~/code/globex/api
+```
+
+Then add `enforcement = "strict"` to the globex seat in the config:
+
+```sh
+seat install-hooks globex
+cd ~/code/globex/api && claude-globex
+```
+
+**You typed `claude-personal` in a client repo out of habit.** Under `strict` the session doesn't start, and the error
+names the right command (`Use: seat run acme`). Under `warn` it starts with a warning, and the session asks you first
+before touching any file in another seat's folders.
+
+**Your browser had the wrong account open when you signed in.** The seat is now signed into your personal org:
+
+```console
+$ seat list
+SEAT         ...  IDENTITY  ENFORCE  ...
+acme (work)  ...  WRONG     strict   ...
+```
+
+Under `strict` the seat refuses to start, and its hooks block prompts until you fix it:
+
+```sh
+seat login acme          # sign in again, this time to the client's org
+seat list                # IDENTITY: ok
+```
+
+**Your IDE's Claude panel used the wrong subscription.** The IDE starts `claude` from PATH, not through your shell:
+
+```sh
+seat shim install
+seat doctor              # check that the shim is the `claude` found first
+```
+
+**An agent orchestrator runs workers across your repos.** Before each worker starts, the orchestrator asks seatwise
+which seat owns the checkout and starts that seat:
+
+```sh
+seat owner "$CHECKOUT" --json          # read "run_seat"
+seat run "$SEAT" -p "$TASK"            # exit 3: refused by the guard; don't retry on another seat
+```
+
+**You're leaving a client.** Keep the config for invoices and questions, but make sure nothing can start on it:
+
+```sh
+seat disable acme
+seat link none ~/code/acme             # closed to every seat; or remove the entry: seat unlink ~/code/acme
+```
+
+**Something feels off.** Start with these three:
+
+```sh
+seat doctor              # setup problems, each with its fix
+seat log                 # what the guard stepped in on
+seat explain             # why this folder's sessions run the way they do
+```
 
 ## Plans and usage
 
