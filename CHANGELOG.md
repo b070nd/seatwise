@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-24
+
 ### Added
 - `--json` on `seat owner`, `list`, `ps`, `explain` and `doctor`, for orchestrators that need to ask which seat a
   folder belongs to before they start an agent. `seat owner --json` also says which seat `seat run auto` would start
@@ -242,7 +244,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/b070nd/seatwise/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/b070nd/seatwise/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/b070nd/seatwise/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/b070nd/seatwise/compare/v0.4.5...v0.5.0
