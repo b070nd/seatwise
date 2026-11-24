@@ -6,6 +6,7 @@
 //! `seat sentinel`, and on a schedule if you install one (`seat sentinel install`: launchd, systemd or Task Scheduler).
 
 use crate::config::{Agent, Apply, Config, Seat, parse_interval};
+use crate::errln;
 use crate::folders::key_string;
 use crate::plan::Plan;
 use crate::{paths, preset};
@@ -451,11 +452,11 @@ pub fn on_start(cfg: &Config, seat: &Seat, cwd: &Path) {
     if findings.is_empty() {
         return;
     }
-    eprintln!("seat: sentinel: {} suggestion(s):", findings.len());
+    errln!("seat: sentinel: {} suggestion(s):", findings.len());
     for f in findings.iter().take(5) {
-        eprintln!("  {}", f.line().replace('\n', "\n  "));
+        errln!("  {}", f.line().replace('\n', "\n  "));
     }
-    eprintln!("  (all: `seat sentinel`; silence one with sentinel.ignore)");
+    errln!("  (all: `seat sentinel`; silence one with sentinel.ignore)");
     if cfg.sentinel.notify {
         notify(&findings);
     }

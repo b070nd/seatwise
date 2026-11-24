@@ -8,6 +8,7 @@ use seatwise::{
     claude, doctor, folders, guard, init, launch, link, paths, ps, share, shell, shim, status,
     sync, usage,
 };
+use seatwise::{err, errln, out, outln};
 use std::io::IsTerminal;
 use std::io::Read;
 use std::path::PathBuf;
@@ -440,10 +441,15 @@ fn preset_session(cfg: &Config, d: seatwise::draft::Draft, interactive: bool) ->
     let terminal = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
     let d = if terminal || interactive {
         let stdin = std::io::stdin();
-        match seatwise::wizard::run(cfg, d, &mut stdin.lock(), &mut std::io::stdout())? {
+        match seatwise::wizard::run(
+            cfg,
+            d,
+            &mut stdin.lock(),
+            &mut seatwise::output::Stdout::default(),
+        )? {
             Some(d) => d,
             None => {
-                println!("nothing written");
+                outln!("nothing written");
                 return Ok(1);
             }
         }
@@ -453,9 +459,10 @@ fn preset_session(cfg: &Config, d: seatwise::draft::Draft, interactive: bool) ->
     let mut file = ConfigFile::open()?;
     d.save(cfg, &mut file)?;
     file.save()?;
-    println!(
+    outln!(
         "preset '{}' written; `seat group add <folder> --preset {}` gives it to folders",
-        d.name, d.name
+        d.name,
+        d.name
     );
     Ok(0)
 }
@@ -485,19 +492,19 @@ fn compact_cmd(seat: Option<String>, value: Option<String>) -> Result<i32> {
                 Some(s) => vec![cfg.seat_named(s)?],
             };
             if let Some(g) = &cfg.compact {
-                println!(
+                outln!(
                     "global   {}",
                     compact::label(compact::parse(&g.as_text())?.unwrap_or(0))
                 );
             }
             for s in seats {
-                println!("{:<8} {}", s.name, shown(&cfg, s));
+                outln!("{:<8} {}", s.name, shown(&cfg, s));
             }
             let tiers: Vec<String> = compact::TIERS
                 .iter()
                 .map(|(n, t, _)| format!("{n} {}", compact::tokens(*t)))
                 .collect();
-            println!("tiers    {} (or a token count, or off)", tiers.join(", "));
+            outln!("tiers    {} (or a token count, or off)", tiers.join(", "));
             Ok(0)
         }
         (seat, Some(value)) => {
@@ -526,7 +533,7 @@ fn compact_cmd(seat: Option<String>, value: Option<String>) -> Result<i32> {
                 } else {
                     ""
                 };
-                println!("seat '{}': compaction {}{note}", s.name, shown(&cfg, s));
+                outln!("seat '{}': compaction {}{note}", s.name, shown(&cfg, s));
             }
             Ok(0)
         }
@@ -581,30 +588,36 @@ fn real_main() -> ExitCode {
         }
         return ExitCode::SUCCESS;
     }
+    // Everything printed goes through seatwise::output, which redacts identifiers when output may reach an agent
+    // (see privacy.rs). Commands that hand the terminal to the agent, a screen or the shell print as they are.
+    // A panic message goes through it too.
+    std::panic::set_hook(Box::new(|info| errln!("seat: {info}")));
     // Claude Code opens links as `$BROWSER <url>`.
     if argv.len() == 2 && (argv[1].starts_with("https://") || argv[1].starts_with("http://")) {
+        seatwise::output::passthrough();
         return finish(link::open(&argv[1]).map(|()| 0));
     }
-    // Output that may reach an agent goes through the redactor (see privacy.rs). Commands that hand the terminal
-    // to the agent or a screen are left alone; they print no identifiers themselves.
-    let passthrough = matches!(
+    if matches!(
         argv.get(1).map(String::as_str),
         Some("run" | "login" | "tui" | "shell-init" | "completions" | "url")
-    );
-    if !passthrough
-        && std::env::var_os("SEATWISE_FILTERED").is_none()
-        && seatwise::privacy::active()
-    {
-        let cfg = Config::load().unwrap_or_default();
-        return match seatwise::privacy::filtered(&cfg) {
-            Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
-            Err(e) => {
-                eprintln!("seat: {e}");
-                ExitCode::FAILURE
-            }
-        };
+    ) {
+        seatwise::output::passthrough();
     }
-    match Cli::parse().cmd {
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        // Without redaction clap prints its own (colored) help and errors.
+        Err(e) if !seatwise::output::redacting() => e.exit(),
+        Err(e) => {
+            let text = e.render().to_string();
+            if e.use_stderr() {
+                err!("{text}");
+            } else {
+                out!("{text}");
+            }
+            return ExitCode::from(u8::try_from(e.exit_code()).unwrap_or(2));
+        }
+    };
+    match cli.cmd {
         Cmd::Hook(h) => hook(h),
         cmd => finish(run(cmd)),
     }
@@ -614,7 +627,7 @@ fn finish(result: Result<i32>) -> ExitCode {
     match result {
         Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
         Err(e) => {
-            eprintln!("seat: {e:#}");
+            errln!("seat: {e:#}");
             ExitCode::FAILURE
         }
     }
@@ -663,11 +676,11 @@ fn hook(h: HookCmd) -> ExitCode {
                     "permissionDecisionReason": msg,
                 }})
             };
-            println!("{out}");
+            outln!("{out}");
             ExitCode::SUCCESS
         }
         Verdict::Block(msg) => {
-            eprintln!("seatwise: {msg}");
+            errln!("seatwise: {msg}");
             ExitCode::from(2)
         }
     }
@@ -742,7 +755,7 @@ fn toggle(target: &str, on: bool) -> Result<String> {
 }
 
 fn ask(question: &str) -> Result<String> {
-    eprint!("{question} ");
+    err!("{question} ");
     let mut line = String::new();
     std::io::stdin().read_line(&mut line)?;
     Ok(line.trim().to_string())
@@ -801,15 +814,20 @@ fn offer_profile(cfg: &Config, seat: &Seat) -> Result<()> {
     let s = plan::suggest(&plan, None);
     let terminal = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
     if !terminal {
-        println!(
+        outln!(
             "suggested usage profile: {} ({}); apply with `seat profile {} {}`",
-            s.profile, s.why, seat.name, s.profile
+            s.profile,
+            s.why,
+            seat.name,
+            s.profile
         );
         return Ok(());
     }
-    print!(
+    out!(
         "Apply the '{}' usage profile to seat '{}' ({})? [y/N] ",
-        s.profile, seat.name, s.why
+        s.profile,
+        seat.name,
+        s.why
     );
     std::io::Write::flush(&mut std::io::stdout())?;
     let mut answer = String::new();
@@ -819,7 +837,7 @@ fn offer_profile(cfg: &Config, seat: &Seat) -> Result<()> {
         let mut file = ConfigFile::open()?;
         file.set_seat(&seat.name, "profile", &s.profile)?;
         file.save()?;
-        println!("profile '{}' applied", s.profile);
+        outln!("profile '{}' applied", s.profile);
     }
     Ok(())
 }
@@ -833,21 +851,21 @@ fn schedule_out(
     if dry_run {
         for (path, text) in &s.files {
             if text.is_empty() {
-                println!("remove {}", path.display());
+                outln!("remove {}", path.display());
             } else {
-                println!("write {}:\n{text}", path.display());
+                outln!("write {}:\n{text}", path.display());
             }
         }
         for c in &s.commands {
-            println!("run: {}", c.join(" "));
+            outln!("run: {}", c.join(" "));
         }
         return Ok(0);
     }
     seatwise::sentinel::carry_out(s, install)?;
     if install {
-        println!("sentinel scheduled every {every}; findings show as notifications");
+        outln!("sentinel scheduled every {every}; findings show as notifications");
     } else {
-        println!("sentinel schedule removed");
+        outln!("sentinel schedule removed");
     }
     Ok(0)
 }
@@ -876,7 +894,7 @@ fn run(cmd: Cmd) -> Result<i32> {
                 }
             };
             for l in lines {
-                println!("{l}");
+                outln!("{l}");
             }
             Ok(0)
         }
@@ -910,7 +928,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             let words = seatwise::term::run_words(&exe, &seat, &with, home, &args);
             let line = seatwise::term::shell_line(&dir, &words);
             if print {
-                println!("{line}");
+                outln!("{line}");
                 return Ok(0);
             }
             seatwise::term::open(&cfg, &dir, &line)?;
@@ -919,7 +937,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             } else {
                 format!(" with {}", with.join(", "))
             };
-            println!(
+            outln!(
                 "opened a terminal: seat {seat}{with_note}, in {}",
                 dir.display()
             );
@@ -948,21 +966,21 @@ fn run(cmd: Cmd) -> Result<i32> {
             let seat = cfg.seat(&seat.name).expect("still there");
             let agents = seatwise::home::sync(&cfg, seat)?;
             if made.is_empty() {
-                println!(
+                outln!(
                     "home repo of seat '{}': {} (adopted)",
                     seat.name,
                     dir.display()
                 );
             } else {
-                println!(
+                outln!(
                     "home repo of seat '{}': {} (created {})",
                     seat.name,
                     dir.display(),
                     made.join(", ")
                 );
             }
-            println!("pointers written to {}", agents.display());
-            println!("start there: seat run --home {}", seat.name);
+            outln!("pointers written to {}", agents.display());
+            outln!("start there: seat run --home {}", seat.name);
             Ok(0)
         }
         Cmd::Home(HomeCmd::Sync { seats }) => {
@@ -974,7 +992,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             };
             for seat in chosen {
                 let f = seatwise::home::sync(&cfg, seat)?;
-                println!(
+                outln!(
                     "seat '{}': {} repo(s) listed in {}",
                     seat.name,
                     seatwise::home::repos(&cfg, seat).len(),
@@ -987,14 +1005,14 @@ fn run(cmd: Cmd) -> Result<i32> {
             let cfg = Config::load()?;
             for seat in pick_seats(&cfg, &seats)? {
                 let done = seatwise::skills::install(&cfg, seat, &exe)?;
-                println!(
+                outln!(
                     "seat '{}': skills installed in {}{}",
                     seat.name,
                     paths::contract(&done.dir),
                     seatwise::hybrid::install_note(&done)
                 );
                 if seat.agent == seatwise::config::Agent::Claude {
-                    println!(
+                    outln!(
                         "  {} (/reload-plugins in a running session)",
                         seatwise::skills::SKILLS
                             .iter()
@@ -1017,7 +1035,7 @@ fn run(cmd: Cmd) -> Result<i32> {
                 .with_context(|| {
                     format!("unknown skill '{name}' (hybrid, terminal, status, home)")
                 })?;
-            print!(
+            out!(
                 "{}",
                 seatwise::skills::render(seatwise::config::Agent::Claude, n, text, &exe)
             );
@@ -1033,9 +1051,9 @@ fn run(cmd: Cmd) -> Result<i32> {
             let proposal = init::propose(&found);
             let target = paths::config_file();
             if print || (target.exists() && !force) {
-                print!("{proposal}");
+                out!("{proposal}");
                 if !print {
-                    eprintln!(
+                    errln!(
                         "seat: {} already exists; this is the proposal (--force replaces it)",
                         target.display()
                     );
@@ -1048,9 +1066,9 @@ fn run(cmd: Cmd) -> Result<i32> {
                 std::fs::create_dir_all(dir)?;
             }
             std::fs::write(&target, proposal)?;
-            println!("wrote {}", target.display());
-            print!("{}", status::list(&cfg, &exe));
-            println!(
+            outln!("wrote {}", target.display());
+            out!("{}", status::list(&cfg, &exe));
+            outln!(
                 "next: review it, choose enforcement (\"warn\" recommended), then `seat doctor`"
             );
             Ok(0)
@@ -1082,25 +1100,23 @@ fn run(cmd: Cmd) -> Result<i32> {
             let seat = cfg.seat(&name).expect("just added");
             let existed = seat.config_dir().is_dir();
             std::fs::create_dir_all(seat.config_dir())?;
-            println!(
+            outln!(
                 "seat '{name}' added ({} {})",
                 if existed { "adopted" } else { "created" },
                 seat.config_dir().display()
             );
             if let Some(src) = source {
                 let copied = share::copy_setup(&src, seat)?;
-                println!("copied from '{}': {}", src.name, copied.join(", "));
+                outln!("copied from '{}': {}", src.name, copied.join(", "));
             }
             if claude::install_hooks(&cfg, seat, &exe)? {
-                println!(
+                outln!(
                     "hooks installed (enforcement: {})",
                     cfg.enforcement_of(seat).as_str()
                 );
             }
             if claude::read_account(seat).is_none() {
-                println!(
-                    "next: `seat login {name}`, then `seat link {name}` in its project folders"
-                );
+                outln!("next: `seat login {name}`, then `seat link {name}` in its project folders");
             }
             Ok(0)
         }
@@ -1113,7 +1129,7 @@ fn run(cmd: Cmd) -> Result<i32> {
                 && seat.email.is_none()
                 && let Ok(msg) = pin(seat)
             {
-                println!("{msg}");
+                outln!("{msg}");
             }
             if code == 0 && seat.profile.is_none() {
                 offer_profile(&cfg, seat)?;
@@ -1123,7 +1139,7 @@ fn run(cmd: Cmd) -> Result<i32> {
         Cmd::Pin { seat } => {
             let cfg = Config::load()?;
             let seat = cfg.seat_named(&seat)?;
-            println!("{}", pin(seat)?);
+            outln!("{}", pin(seat)?);
             Ok(0)
         }
         Cmd::Profile {
@@ -1146,7 +1162,7 @@ fn run(cmd: Cmd) -> Result<i32> {
                     let mut file = ConfigFile::open()?;
                     file.set_seat(&seat.name, "profile", &name)?;
                     file.save()?;
-                    println!(
+                    outln!(
                         "seat '{}': profile '{name}' applied to {}",
                         seat.name,
                         seat.config_dir().join("settings.json").display()
@@ -1163,32 +1179,32 @@ fn run(cmd: Cmd) -> Result<i32> {
                     } else {
                         None
                     };
-                    println!("seat '{}': {} plan", seat.name, plan.label());
+                    outln!("seat '{}': {} plan", seat.name, plan.label());
                     if seat.agent != seatwise::config::Agent::Claude {
-                        println!(
+                        outln!(
                             "  usage profiles are Claude Code settings; Codex has its own in config.toml"
                         );
                         return Ok(0);
                     }
                     let s = plan::suggest(&plan, live.as_ref());
                     if account.extra_usage {
-                        println!("  extra usage is on: use beyond the plan is billed");
+                        outln!("  extra usage is on: use beyond the plan is billed");
                     }
                     if let Some(u) = &live {
                         for line in usage::render(u) {
-                            println!("  {line}");
+                            outln!("  {line}");
                         }
                     }
-                    println!(
+                    outln!(
                         "  current profile: {}",
                         seat.profile.as_deref().unwrap_or("none")
                     );
-                    println!("  suggested: {} ({})", s.profile, s.why);
-                    println!("profiles:");
+                    outln!("  suggested: {} ({})", s.profile, s.why);
+                    outln!("profiles:");
                     for (n, d) in plan::all(&cfg) {
-                        println!("  {n:<9} {d}");
+                        outln!("  {n:<9} {d}");
                     }
-                    println!("apply: seat profile {} {}", seat.name, s.profile);
+                    outln!("apply: seat profile {} {}", seat.name, s.profile);
                 }
             }
             Ok(0)
@@ -1198,16 +1214,16 @@ fn run(cmd: Cmd) -> Result<i32> {
             let mut failed = false;
             for seat in pick_seats(&cfg, &seats)? {
                 match usage::fetch(seat) {
-                    Ok(u) if u.windows.is_empty() => println!("{}: no limits reported", seat.name),
+                    Ok(u) if u.windows.is_empty() => outln!("{}: no limits reported", seat.name),
                     Ok(u) => {
-                        println!("{}", seat.name);
+                        outln!("{}", seat.name);
                         for line in usage::render(&u) {
-                            println!("  {line}");
+                            outln!("  {line}");
                         }
                     }
                     Err(e) => {
                         failed = true;
-                        println!("{}: {e:#}", seat.name);
+                        outln!("{}: {e:#}", seat.name);
                     }
                 }
             }
@@ -1267,7 +1283,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             }
             file.save()?;
             for (owner, path) in &entries {
-                println!("{}: {owner}", path.display());
+                outln!("{}: {owner}", path.display());
             }
             Ok(0)
         }
@@ -1286,19 +1302,19 @@ fn run(cmd: Cmd) -> Result<i32> {
             let mut file = ConfigFile::open()?;
             file.link(&path, &owner);
             file.save()?;
-            println!("{}: {owner}", path.display());
+            outln!("{}: {owner}", path.display());
             Ok(0)
         }
         Cmd::Unlink { missing: true, .. } => {
             let mut file = ConfigFile::open()?;
             let removed = file.unlink_missing();
             if removed.is_empty() {
-                println!("every folder entry exists");
+                outln!("every folder entry exists");
                 return Ok(0);
             }
             file.save()?;
             for p in removed {
-                println!("{p}: entry removed (folder doesn't exist)");
+                outln!("{p}: entry removed (folder doesn't exist)");
             }
             Ok(0)
         }
@@ -1312,7 +1328,7 @@ fn run(cmd: Cmd) -> Result<i32> {
                 );
             }
             file.save()?;
-            println!("{}: entry removed", path.display());
+            outln!("{}: entry removed", path.display());
             Ok(0)
         }
         Cmd::Owner { path } => {
@@ -1324,11 +1340,11 @@ fn run(cmd: Cmd) -> Result<i32> {
                 Some(Owner::Nobody) => "none (closed to every seat)".into(),
                 None => "unassigned".into(),
             };
-            println!("{}: {owner}", p.display());
+            outln!("{}: {owner}", p.display());
             Ok(0)
         }
         Cmd::List => {
-            print!("{}", status::list(&Config::load()?, &exe));
+            out!("{}", status::list(&Config::load()?, &exe));
             Ok(0)
         }
         Cmd::Show { seat, json } => {
@@ -1336,9 +1352,9 @@ fn run(cmd: Cmd) -> Result<i32> {
             let s = cfg.seat_named(&seat)?;
             let v = seatwise::view::seat(&cfg, s, &exe, &seatwise::desktop::running(&cfg));
             if json {
-                println!("{}", serde_json::to_string_pretty(&v)?);
+                outln!("{}", serde_json::to_string_pretty(&v)?);
             } else {
-                print!("{}", seatwise::view::seat_text(&v));
+                out!("{}", seatwise::view::seat_text(&v));
             }
             Ok(0)
         }
@@ -1346,11 +1362,11 @@ fn run(cmd: Cmd) -> Result<i32> {
             let cfg = Config::load()?;
             let p = seatwise::view::projects(&cfg);
             if json {
-                println!("{}", serde_json::to_string_pretty(&p)?);
+                outln!("{}", serde_json::to_string_pretty(&p)?);
             } else if p.is_empty() {
-                println!("no project folders yet: `seat link <seat> <folder>`");
+                outln!("no project folders yet: `seat link <seat> <folder>`");
             } else {
-                print!("{}", seatwise::view::projects_text(&p, true));
+                out!("{}", seatwise::view::projects_text(&p, true));
             }
             Ok(0)
         }
@@ -1361,13 +1377,13 @@ fn run(cmd: Cmd) -> Result<i32> {
             } else {
                 Config::default()
             };
-            print!("{}", ps::list(&cfg)?);
+            out!("{}", ps::list(&cfg)?);
             Ok(0)
         }
         Cmd::Doctor { desktop: true, .. } => {
             let cfg = Config::load()?;
             for line in seatwise::desktop::log_report(&cfg) {
-                println!("{line}");
+                outln!("{line}");
             }
             Ok(0)
         }
@@ -1376,11 +1392,11 @@ fn run(cmd: Cmd) -> Result<i32> {
             let mut findings = doctor::check(&cfg, &exe);
             if fix {
                 for done in doctor::fix(&cfg, &exe, &findings)? {
-                    println!("fixed: {done}");
+                    outln!("fixed: {done}");
                 }
                 findings = doctor::check(&cfg, &exe);
             }
-            print!("{}", doctor::report(&findings));
+            out!("{}", doctor::report(&findings));
             Ok(i32::from(
                 findings.iter().any(|f| f.level == doctor::Level::Error),
             ))
@@ -1390,14 +1406,14 @@ fn run(cmd: Cmd) -> Result<i32> {
             for seat in pick_seats(&cfg, &seats)? {
                 let file = seat.config_dir().join("settings.json");
                 if claude::install_hooks(&cfg, seat, &exe)? {
-                    println!(
+                    outln!(
                         "seat '{}': hooks installed in {} (enforcement: {})",
                         seat.name,
                         file.display(),
                         cfg.enforcement_of(seat).as_str()
                     );
                 } else {
-                    println!(
+                    outln!(
                         "seat '{}': enforcement is off, no seatwise hooks in {}",
                         seat.name,
                         file.display()
@@ -1410,7 +1426,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             let cfg = Config::load()?;
             let items = share::adopt(&cfg)?;
             if items.is_empty() {
-                println!("no skills in ~/.claude/skills or ~/.agents/skills");
+                outln!("no skills in ~/.claude/skills or ~/.agents/skills");
                 return Ok(0);
             }
             let mut file = ConfigFile::open()?;
@@ -1427,13 +1443,13 @@ fn run(cmd: Cmd) -> Result<i32> {
                 }
                 let array: toml_edit::Array = list.iter().map(String::as_str).collect();
                 file.set_seat_value(&seat.name, "share", Some(array.into()))?;
-                println!("seat '{}': shares {}", seat.name, items.join(", "));
+                outln!("seat '{}': shares {}", seat.name, items.join(", "));
             }
             file.save()?;
             let cfg = Config::load()?;
             for seat in pick_seats(&cfg, &seats)? {
                 for n in share::apply(&cfg, seat)? {
-                    println!("{n}");
+                    outln!("{n}");
                 }
             }
             Ok(0)
@@ -1443,23 +1459,23 @@ fn run(cmd: Cmd) -> Result<i32> {
             for seat in pick_seats(&cfg, &seats)? {
                 let notes = share::apply(&cfg, seat)?;
                 if notes.is_empty() {
-                    println!("seat '{}': shared items up to date", seat.name);
+                    outln!("seat '{}': shared items up to date", seat.name);
                 }
                 for n in notes {
-                    println!("{n}");
+                    outln!("{n}");
                 }
             }
             Ok(0)
         }
         Cmd::ShellInit { shell } => {
-            print!("{}", shell::init(shell, &Config::load()?, &exe));
+            out!("{}", shell::init(shell, &Config::load()?, &exe));
             Ok(0)
         }
         Cmd::Shim(ShimCmd::Install) => {
             let f = shim::install(&exe)?;
-            println!("wrote {}", f.display());
+            outln!("wrote {}", f.display());
             if !shim::first_on_path() {
-                println!(
+                outln!(
                     "put {} first on PATH, e.g. export PATH=\"{}:$PATH\"",
                     shim::dir().display(),
                     shim::dir().display()
@@ -1468,7 +1484,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             Ok(0)
         }
         Cmd::Shim(ShimCmd::Uninstall) => {
-            println!(
+            outln!(
                 "{}",
                 if shim::uninstall()? {
                     "shim removed"
@@ -1486,12 +1502,12 @@ fn run(cmd: Cmd) -> Result<i32> {
             let cfg = Config::load()?;
             let seat = cfg.seat_named(&seat)?;
             for note in sync::restore(seat, &cfg.track)? {
-                println!("{note}");
+                outln!("{note}");
             }
             Ok(0)
         }
         Cmd::ConfigPath => {
-            println!("{}", paths::config_file().display());
+            outln!("{}", paths::config_file().display());
             Ok(0)
         }
         Cmd::Hybrid {
@@ -1518,20 +1534,20 @@ fn run(cmd: Cmd) -> Result<i32> {
             if json {
                 let cfg = Config::load()?;
                 let plan = seatwise::hybrid::plan(&cfg, &exe, &opts)?;
-                println!("{}", serde_json::to_string_pretty(&plan)?);
+                outln!("{}", serde_json::to_string_pretty(&plan)?);
                 return Ok(0);
             }
             for line in seatwise::hybrid::run(&exe, &opts)? {
-                println!("{line}");
+                outln!("{line}");
             }
             Ok(0)
         }
         Cmd::Enable { target } => {
-            println!("{}", toggle(&target, true)?);
+            outln!("{}", toggle(&target, true)?);
             Ok(0)
         }
         Cmd::Disable { target } => {
-            println!("{}", toggle(&target, false)?);
+            outln!("{}", toggle(&target, false)?);
             Ok(0)
         }
         Cmd::Explain { path, seat, with } => {
@@ -1542,7 +1558,7 @@ fn run(cmd: Cmd) -> Result<i32> {
                 None => seat_here(&cfg, &dir)
                     .with_context(|| format!("no seat for {}; pass --seat", dir.display()))?,
             };
-            print!("{}", seatwise::preset::explain(&cfg, seat, &dir, &with));
+            out!("{}", seatwise::preset::explain(&cfg, seat, &dir, &with));
             Ok(0)
         }
         Cmd::Preset(PresetCmd::List) => {
@@ -1575,7 +1591,7 @@ fn run(cmd: Cmd) -> Result<i32> {
                     p.description.clone(),
                 ]);
             }
-            print!("{}", status::table(&rows));
+            out!("{}", status::table(&rows));
             Ok(0)
         }
         Cmd::Settings(SettingsCmd::Search {
@@ -1594,7 +1610,7 @@ fn run(cmd: Cmd) -> Result<i32> {
                 },
             );
             if hits.is_empty() {
-                println!("nothing matches; `seat settings search` lists everything");
+                outln!("nothing matches; `seat settings search` lists everything");
                 return Ok(1);
             }
             let mut rows = vec![
@@ -1614,8 +1630,8 @@ fn run(cmd: Cmd) -> Result<i32> {
                 }
                 rows.push(vec![e.name.clone(), value, mark.into(), e.meaning.clone()]);
             }
-            print!("{}", seatwise::status::table(&rows));
-            println!(
+            out!("{}", seatwise::status::table(&rows));
+            outln!(
                 "\n{} of them. `seat settings show <key>` for details. Catalog checked {}.",
                 hits.len(),
                 seatwise::catalog::CHECKED
@@ -1627,13 +1643,13 @@ fn run(cmd: Cmd) -> Result<i32> {
                 let mut near = seatwise::catalog::near(&key);
                 near.extend(seatwise::catalog::search(&key, Default::default()));
                 near.dedup_by(|a, b| a.name == b.name);
-                eprintln!("seat: {key} is not in the settings catalog");
+                errln!("seat: {key} is not in the settings catalog");
                 for e in near.iter().take(5) {
-                    eprintln!("  did you mean {}?", e.name);
+                    errln!("  did you mean {}?", e.name);
                 }
                 return Ok(1);
             };
-            print!("{}", seatwise::catalog::describe(e));
+            out!("{}", seatwise::catalog::describe(e));
             Ok(0)
         }
         Cmd::Settings(SettingsCmd::Check { name, file, target }) => {
@@ -1666,11 +1682,11 @@ fn run(cmd: Cmd) -> Result<i32> {
             };
             let problems = seatwise::catalog::check(&settings, target);
             if problems.is_empty() {
-                println!("{what}: no problems for {}", target.label());
+                outln!("{what}: no problems for {}", target.label());
                 return Ok(0);
             }
-            println!("{what}, applied in {}:", target.label());
-            print!("{}", seatwise::catalog::report(&problems));
+            outln!("{what}, applied in {}:", target.label());
+            out!("{}", seatwise::catalog::report(&problems));
             Ok(if problems.iter().any(|p| p.level == Level::Error) {
                 1
             } else {
@@ -1711,9 +1727,9 @@ fn run(cmd: Cmd) -> Result<i32> {
             let mut file = ConfigFile::open()?;
             d.save(&cfg, &mut file)?;
             file.save()?;
-            println!("preset '{name}': {key} = {value}");
+            outln!("preset '{name}': {key} = {value}");
             for n in notes {
-                println!("note: {}", n.message);
+                outln!("note: {}", n.message);
             }
             Ok(0)
         }
@@ -1721,13 +1737,13 @@ fn run(cmd: Cmd) -> Result<i32> {
             let cfg = Config::load()?;
             let mut d = draft_of(&cfg, &name)?;
             if !d.unset(&key) {
-                println!("preset '{name}' doesn't set {key}");
+                outln!("preset '{name}' doesn't set {key}");
                 return Ok(1);
             }
             let mut file = ConfigFile::open()?;
             d.save(&cfg, &mut file)?;
             file.save()?;
-            println!("preset '{name}': {key} removed");
+            outln!("preset '{name}': {key} removed");
             Ok(0)
         }
         Cmd::Preset(PresetCmd::Profiles { name, profiles }) => {
@@ -1737,7 +1753,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             let mut file = ConfigFile::open()?;
             d.save(&cfg, &mut file)?;
             file.save()?;
-            println!(
+            outln!(
                 "preset '{name}': profiles {}",
                 if profiles.is_empty() {
                     "-".into()
@@ -1755,7 +1771,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             let cfg = Config::load()?;
             let d = draft_of(&cfg, &name).unwrap_or_else(|_| seatwise::draft::Draft::new(&name));
             let options = d.options(&cfg, &query.join(" "), experimental);
-            println!(
+            outln!(
                 "preset '{name}' is applied in {}; these settings can go in it:",
                 d.target.label()
             );
@@ -1775,15 +1791,16 @@ fn run(cmd: Cmd) -> Result<i32> {
                 } else {
                     o.values.join(" | ")
                 };
-                println!(
+                outln!(
                     "{}{exp}{now}\n    {}\n    values: {values}",
-                    o.entry.name, o.entry.meaning
+                    o.entry.name,
+                    o.entry.meaning
                 );
                 if let Some(b) = &o.blocked {
-                    println!("    not now: {b}");
+                    outln!("    not now: {b}");
                 }
             }
-            println!(
+            outln!(
                 "{} setting(s). `seat preset set {name} <key> <value>` sets one.",
                 options.len()
             );
@@ -1793,8 +1810,8 @@ fn run(cmd: Cmd) -> Result<i32> {
             let cfg = Config::load()?;
             let p = seatwise::preset::get(&cfg, &name)
                 .with_context(|| seatwise::preset::unknown(&cfg, &name))?;
-            println!("{}: {}", p.name, p.description);
-            println!(
+            outln!("{}: {}", p.name, p.description);
+            outln!(
                 "{}",
                 serde_json::to_string_pretty(&seatwise::preset::settings(&cfg, &p))?
             );
@@ -1818,9 +1835,9 @@ fn run(cmd: Cmd) -> Result<i32> {
                 ]);
             }
             if cfg.groups.is_empty() {
-                println!("no folder groups: `seat group add` makes one");
+                outln!("no folder groups: `seat group add` makes one");
             } else {
-                print!("{}", status::table(&rows));
+                out!("{}", status::table(&rows));
             }
             Ok(0)
         }
@@ -1843,11 +1860,11 @@ fn run(cmd: Cmd) -> Result<i32> {
                 Some(p) => p,
                 None if terminal => {
                     let all = seatwise::preset::all(&cfg);
-                    eprintln!("Preset for {}:", dir.display());
+                    errln!("Preset for {}:", dir.display());
                     for (i, p) in all.iter().enumerate() {
-                        eprintln!("  {}) {:<9} {}", i + 1, p.name, p.description);
+                        errln!("  {}) {:<9} {}", i + 1, p.name, p.description);
                     }
-                    eprintln!("  0) none      no preset here");
+                    errln!("  0) none      no preset here");
                     let a = ask(">")?;
                     match a.parse::<usize>() {
                         Ok(0) => "none".into(),
@@ -1888,12 +1905,12 @@ fn run(cmd: Cmd) -> Result<i32> {
             let mut file = ConfigFile::open()?;
             file.add_group(&group)?;
             file.save()?;
-            println!(
+            outln!(
                 "group '{name}': {} → preset {}",
                 paths::contract(&dir),
                 group.preset
             );
-            println!("check it: seat explain {}", paths::contract(&dir));
+            outln!("check it: seat explain {}", paths::contract(&dir));
             Ok(0)
         }
         Cmd::Group(GroupCmd::Remove { name }) => {
@@ -1902,7 +1919,7 @@ fn run(cmd: Cmd) -> Result<i32> {
                 bail!("no group '{name}'");
             }
             file.save()?;
-            println!("group '{name}' removed");
+            outln!("group '{name}' removed");
             Ok(0)
         }
         Cmd::Sentinel(args) => {
@@ -1910,7 +1927,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             match args.cmd {
                 Some(SentinelCmd::Rules) => {
                     for (rule, what) in seatwise::sentinel::RULES {
-                        println!("{rule:<18} {what}");
+                        outln!("{rule:<18} {what}");
                     }
                     return Ok(0);
                 }
@@ -1942,10 +1959,10 @@ fn run(cmd: Cmd) -> Result<i32> {
             }
             if !args.quiet {
                 if findings.is_empty() {
-                    println!("no suggestions");
+                    outln!("no suggestions");
                 }
                 for f in &findings {
-                    println!("{}", f.line());
+                    outln!("{}", f.line());
                 }
             }
             Ok(0)

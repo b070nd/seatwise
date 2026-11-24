@@ -5,12 +5,14 @@
 //! output may reach an agent, every identifier is replaced by a placeholder naming the seat it belongs to,
 //! such as `<org:work>`, and any other UUID or email address by `<uuid>` / `<email>`.
 //!
+//! The redaction itself lives here; [`crate::output`] applies it to every line seatwise prints.
+//!
 //! Redaction is on when an agent is detected (Claude Code, Codex, a session seatwise started), or when output
 //! isn't a terminal. `SEATWISE_REVEAL=1` turns it off, but only outside an agent: an agent can't reveal for itself.
 //! Credentials are never printed at all, redacted or not.
 
 use crate::config::Config;
-use std::io::{BufRead, BufReader, IsTerminal, Write};
+use std::io::IsTerminal;
 use std::path::PathBuf;
 
 /// Set by Claude Code (`CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT`), by Codex in its sandboxed commands, and by
@@ -185,43 +187,6 @@ pub fn redact(known: &[(String, String)], line: &str) -> String {
         }
     }
     generic(&s)
-}
-
-/// Run this same command again with its output redacted line by line. Returns its exit code.
-pub fn filtered(cfg: &Config) -> std::io::Result<i32> {
-    let known = std::sync::Arc::new(known(cfg));
-    let mut child = std::process::Command::new(std::env::current_exe()?)
-        .args(std::env::args_os().skip(1))
-        .env("SEATWISE_FILTERED", "1")
-        .stdin(std::process::Stdio::inherit())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()?;
-    let err = child.stderr.take().expect("piped");
-    let k = known.clone();
-    let t = std::thread::spawn(move || copy(BufReader::new(err), &mut std::io::stderr(), &k));
-    copy(
-        BufReader::new(child.stdout.take().expect("piped")),
-        &mut std::io::stdout(),
-        &known,
-    );
-    let _ = t.join();
-    Ok(child.wait()?.code().unwrap_or(1))
-}
-
-fn copy(mut from: impl BufRead, to: &mut impl Write, known: &[(String, String)]) {
-    let mut buf = Vec::new();
-    loop {
-        buf.clear();
-        match from.read_until(b'\n', &mut buf) {
-            Ok(0) | Err(_) => break,
-            Ok(_) => {
-                let line = String::from_utf8_lossy(&buf);
-                let _ = to.write_all(redact(known, &line).as_bytes());
-                let _ = to.flush();
-            }
-        }
-    }
 }
 
 #[cfg(test)]

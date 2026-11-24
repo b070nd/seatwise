@@ -1933,6 +1933,40 @@ fn identifiers_are_hidden_from_agents_and_pipes() {
 }
 
 #[test]
+fn errors_and_usage_messages_are_redacted_in_process() {
+    let e = setup();
+    let id = "12345678-90ab-4cde-8f01-234567890abc";
+    // An error that echoes what was typed.
+    let t = text(
+        &e.seat("", &["show", id])
+            .env("CLAUDECODE", "1")
+            .env_remove("SEATWISE_REVEAL")
+            .output()
+            .unwrap(),
+    );
+    assert!(
+        t.contains("unknown seat '<uuid>'") && !t.contains(id),
+        "{t}"
+    );
+    // clap's own usage error, printed by clap when nothing is redacted and through the redactor when it is.
+    let t = text(
+        &e.seat("", &["--no-such-flag", id])
+            .env("CLAUDECODE", "1")
+            .env_remove("SEATWISE_REVEAL")
+            .output()
+            .unwrap(),
+    );
+    assert!(t.contains("unexpected argument") && !t.contains(id), "{t}");
+    // Output that isn't redacted stays whole: shell code and completions are never rewritten.
+    let t = ok(&e
+        .seat("", &["completions", "bash"])
+        .env("CLAUDECODE", "1")
+        .output()
+        .unwrap());
+    assert!(t.contains("complete"), "{t}");
+}
+
+#[test]
 fn the_hybrid_plan_lists_only_open_choices_and_valid_session_settings() {
     let e = setup_with("[profile.broken]\npermissions = { defaultMode = \"sometimes\" }\n");
     let t = ok(&e

@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Changed
+- Everything seatwise prints now goes through one output module, which redacts account identifiers in the process
+  itself (for an agent, or when output isn't a terminal). That replaces re-running the whole command with its pipes
+  filtered, so a new command can no longer leak by being left off a list; panic messages and clap's usage errors are
+  redacted too. Commands that hand the terminal over (`run`, `login`, `tui`, `shell-init`, `completions`, `url`) print
+  as they are. A closed pipe (`seat list | head`) no longer panics.
+
+### Changed
 - A seat, preset or group name that doesn't exist now says what it probably meant: `unknown seat 'wrk' (maybe you
   meant 'work'; known: work, frontier, personal)`. One lookup does it for every command, and the edit-distance
   helper is shared with the settings catalog's typo hints.

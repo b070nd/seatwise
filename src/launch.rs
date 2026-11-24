@@ -3,6 +3,7 @@
 use crate::config::{Agent, Config, Enforcement, Link, Owner, Seat};
 use crate::folders::{normalize, owner_of};
 use crate::{claude, guard, paths, share, sync};
+use crate::{err, errln};
 use anyhow::{Context, Result, bail};
 use serde_json::json;
 use std::io::IsTerminal;
@@ -80,16 +81,16 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
         )?;
     }
     for note in sync::reconcile(seat, &cfg.track)? {
-        eprintln!("seat: {note}");
+        errln!("seat: {note}");
     }
     for note in share::apply(cfg, seat)? {
-        eprintln!("seat: {note}");
+        errln!("seat: {note}");
     }
     for note in crate::home::apply_skills(seat)? {
-        eprintln!("seat: {note}");
+        errln!("seat: {note}");
     }
     if let Some(t) = crate::compact::enforce(cfg, seat)? {
-        eprintln!(
+        errln!(
             "seat: compaction at {} set in {}",
             crate::compact::label(t),
             seat.hooks_file().display()
@@ -107,7 +108,7 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
             crate::config::Apply::Project => {
                 let root = crate::preset::project_root(&cwd);
                 if crate::preset::write_project(&root, &resolved.settings)? {
-                    eprintln!(
+                    errln!(
                         "seat: preset '{name}' written to {}",
                         root.join(".claude").join("settings.local.json").display()
                     );
@@ -233,7 +234,7 @@ fn apply(level: Enforcement, check: Result<(), String>) -> Result<()> {
     match (check, level) {
         (Ok(()), _) | (Err(_), Enforcement::Off) => Ok(()),
         (Err(m), Enforcement::Warn) => {
-            eprintln!("seat: warning: {m}");
+            errln!("seat: warning: {m}");
             Ok(())
         }
         (Err(m), Enforcement::Strict) => bail!("{m}"),
@@ -295,16 +296,16 @@ fn resolve_auto<'a>(cfg: &'a Config, owner: Option<Owner<'_>>, cwd: &Path) -> Re
 }
 
 fn pick<'a>(cfg: &'a Config, why: &str) -> Result<&'a Seat> {
-    eprintln!("seat: {why}. Which seat?");
+    errln!("seat: {why}. Which seat?");
     let seats: Vec<&Seat> = cfg.seats.iter().filter(|s| cfg.is_enabled(s)).collect();
     if seats.is_empty() {
         bail!("every seat is disabled");
     }
     for (i, seat) in seats.iter().enumerate() {
-        eprintln!("  {}) {}", i + 1, seat.name);
+        errln!("  {}) {}", i + 1, seat.name);
     }
     loop {
-        eprint!("> ");
+        err!("> ");
         let mut line = String::new();
         if std::io::stdin().read_line(&mut line)? == 0 {
             bail!("no seat chosen");

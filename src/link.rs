@@ -3,6 +3,7 @@
 //! (e.g. a browser with a profile flag).
 
 use crate::config::{Config, Link, Seat};
+use crate::errln;
 use crate::folders::normalize;
 use crate::paths;
 use anyhow::{Context, Result, bail};
@@ -57,7 +58,7 @@ pub fn open(url: &str) -> Result<()> {
         Link::Copy => copy(url, label),
         Link::System => system_open(url),
         Link::Command(argv) => run_command(argv, url).or_else(|e| {
-            eprintln!("seat: {e:#}");
+            errln!("seat: {e:#}");
             copy(url, label)
         }),
     }
@@ -70,16 +71,14 @@ pub fn copy(url: &str, seat: Option<&str>) -> Result<()> {
         .unwrap_or_else(|| "this seat".into());
     if let Err(e) = set_clipboard(url) {
         // Never lose the link: show it so it can be copied by hand.
-        eprintln!(
-            "seat: could not copy the link ({e}). Open it in the browser for {which}:\n{url}"
-        );
+        errln!("seat: could not copy the link ({e}). Open it in the browser for {which}:\n{url}");
         return Ok(());
     }
     let _ = notify_rust::Notification::new()
         .summary("Link copied")
         .body(&format!("Paste it into the browser for {which}."))
         .show();
-    eprintln!("seat: link copied to the clipboard ({which})");
+    errln!("seat: link copied to the clipboard ({which})");
     Ok(())
 }
 

@@ -73,6 +73,8 @@ pub fn scaffold(seat: &Seat, dir: &Path) -> Result<Vec<String>> {
         && Command::new("git")
             .args(["init", "-q"])
             .current_dir(dir)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
             .status()
             .is_ok_and(|s| s.success())
     {

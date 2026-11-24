@@ -16,6 +16,7 @@ pub mod hybrid;
 pub mod init;
 pub mod launch;
 pub mod link;
+pub mod output;
 pub mod paths;
 pub mod plan;
 pub mod preset;
