@@ -7,6 +7,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- A linked git worktree outside every configured folder (Claude Code's `.claude/worktrees`, an agent tool's own
+  worktree folder) belongs to the seat that owns its main checkout: `seat run auto`, `seat owner` and both hooks
+  place it there, so threads in worktrees no longer need their own folder entry.
+- `claude --version`, `-v`, `--help` and `-h` through the shim run in folders no seat owns (tools probe the CLI from
+  their own folders): on `default_seat`, else the first enabled Claude Code seat, without the folder check. Real
+  sessions there are still refused.
+- Under an agent, redaction leaves the paths seatwise prints itself (config file, data folder, seat and project
+  folders) intact; a UUID inside them no longer turns into `<uuid>`.
+- `seat doctor` warns about `~/.claude` only when it holds settings, sessions or instructions. A folder with
+  just what the desktop app or a tool left (`bridge-spawn`, `ssh`, a skill) is an info line naming its contents.
+- `seat doctor` tells a shim missing from this process's PATH apart from one missing everywhere: when a fresh login shell
+  finds it first, it says to restart this terminal or the desktop app instead of warning.
+
 ## [0.4.3] - 2026-11-23
 
 ### Added

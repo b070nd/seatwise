@@ -33,7 +33,17 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
     }
     let cwd = normalize(&std::env::current_dir()?, &paths::home());
     let owner = owner_of(cfg, &cwd);
-    let seat = if seat_arg == "auto" {
+    // `claude --version` and `--help` start no session: tools run them from their own folders (a model list, an
+    // update check). In a folder no seat owns they get a seat's setup without the folder check.
+    let probe_only = seat_arg == "auto"
+        && matches!(
+            args.first().map(String::as_str),
+            Some("--version" | "-v" | "--help" | "-h")
+        )
+        && !matches!(owner, Some(Owner::Seat(_)));
+    let seat = if probe_only {
+        probe_seat(cfg).context("no enabled Claude Code seat to run it on")?
+    } else if seat_arg == "auto" {
         resolve_auto(cfg, owner, &cwd)?
     } else {
         cfg.seat(seat_arg)
@@ -52,7 +62,7 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
         bail!("seat '{}' can't start: {why}", seat.name);
     }
 
-    if !guard::forced() {
+    if !guard::forced() && !probe_only {
         let level = cfg.enforcement_of(seat);
         if level != Enforcement::Off {
             apply(level, guard::check_start(cfg, seat, &cwd))?;
@@ -229,6 +239,19 @@ fn apply(level: Enforcement, check: Result<(), String>) -> Result<()> {
         }
         (Err(m), Enforcement::Strict) => bail!("{m}"),
     }
+}
+
+/// The seat a probe (`claude --version`) runs on: `default_seat`, else the first enabled Claude Code seat.
+fn probe_seat(cfg: &Config) -> Option<&Seat> {
+    cfg.default_seat
+        .as_deref()
+        .and_then(|d| cfg.seat(d))
+        .filter(|s| cfg.is_enabled(s) && s.agent == Agent::Claude)
+        .or_else(|| {
+            cfg.seats
+                .iter()
+                .find(|s| cfg.is_enabled(s) && s.agent == Agent::Claude)
+        })
 }
 
 /// The seat for `seat run auto`: the folder's owner, else `default_seat`, else a choice on the terminal.

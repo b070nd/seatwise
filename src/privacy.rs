@@ -11,6 +11,7 @@
 
 use crate::config::Config;
 use std::io::{BufRead, BufReader, IsTerminal, Write};
+use std::path::PathBuf;
 
 /// Set by Claude Code (`CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT`), by Codex in its sandboxed commands, and by
 /// seatwise for the sessions it starts (`SEATWISE_SEAT`).
@@ -63,6 +64,22 @@ pub fn known(cfg: &Config) -> Vec<(String, String)> {
         add(a.org_name.as_deref(), "org-name", &name);
         add(a.email.as_deref(), "email", &name);
         add(a.account_uuid.as_deref(), "account", &name);
+    }
+    // Paths seatwise itself prints (config file, data folder, seat folders, project folders) stay as they are:
+    // a placeholder inside a path makes it unusable. A value equal to its placeholder means "keep".
+    let mut keep = |p: PathBuf| {
+        let s = p.display().to_string();
+        if s.len() >= 3 {
+            out.push((s.clone(), s));
+        }
+    };
+    keep(crate::paths::config_file());
+    keep(crate::paths::data_dir());
+    for s in &cfg.seats {
+        keep(s.config_dir());
+    }
+    for f in &cfg.folders {
+        keep(crate::paths::expand(&f.path));
     }
     // A value shared by two seats (same email in two orgs) keeps the first seat's placeholder; the point is that
     // the value is gone.
@@ -144,6 +161,23 @@ fn generic(s: &str) -> String {
 }
 
 pub fn redact(known: &[(String, String)], line: &str) -> String {
+    // Entries whose value is their own placeholder are paths to keep: redact around them.
+    let keeps = || {
+        known
+            .iter()
+            .filter(|(v, p)| v == p)
+            .map(|(v, _)| v.as_str())
+    };
+    let first = keeps()
+        .filter_map(|k| line.find(k).map(|i| (i, k)))
+        .min_by_key(|(i, k)| (*i, std::cmp::Reverse(k.len())));
+    if let Some((i, k)) = first {
+        return format!(
+            "{}{k}{}",
+            redact(known, &line[..i]),
+            redact(known, &line[i + k.len()..])
+        );
+    }
     let mut s = line.to_string();
     for (value, placeholder) in known {
         if s.contains(value.as_str()) {
@@ -210,6 +244,18 @@ mod tests {
             "a path ~/x/y@2 and 1234"
         );
         assert_eq!(redact(&[], "ü <a@b.co>."), "ü <<email>>.");
+        let kept = vec![(
+            "/h/12345678-90ab-4cde-8f01-234567890abc/c.toml".to_string(),
+            "/h/12345678-90ab-4cde-8f01-234567890abc/c.toml".to_string(),
+        )];
+        assert_eq!(
+            redact(
+                &kept,
+                "config /h/12345678-90ab-4cde-8f01-234567890abc/c.toml and 12345678-90ab-4cde-8f01-234567890abc"
+            ),
+            "config /h/12345678-90ab-4cde-8f01-234567890abc/c.toml and <uuid>",
+            "own paths stay usable"
+        );
         assert_eq!(
             redact(&[], "x12345678-90ab-4cde-8f01-234567890abc"),
             "x12345678-90ab-4cde-8f01-234567890abc",

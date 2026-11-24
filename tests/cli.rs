@@ -195,6 +195,46 @@ fn wrong_folder_unassigned_closed_and_shared_auto_are_refused() {
 }
 
 #[test]
+fn a_worktree_outside_every_folder_runs_on_its_main_checkouts_seat() {
+    let e = setup();
+    let gitdir = e.home.join("proj-a/.git/worktrees/t1");
+    fs::create_dir_all(&gitdir).unwrap();
+    let wt = e.home.join("elsewhere/thread/proj-a");
+    fs::create_dir_all(&wt).unwrap();
+    fs::write(wt.join(".git"), format!("gitdir: {}\n", gitdir.display())).unwrap();
+    let t = text(
+        &e.seat("elsewhere/thread/proj-a", &["run", "auto"])
+            .output()
+            .unwrap(),
+    );
+    assert!(t.contains("SEAT=a"), "{t}");
+    // The other seat is still refused there.
+    let t = text(
+        &e.seat("elsewhere/thread/proj-a", &["run", "b"])
+            .output()
+            .unwrap(),
+    );
+    assert!(
+        t.contains("belongs to seat 'a'") && !t.contains("CFG="),
+        "{t}"
+    );
+}
+
+#[test]
+fn version_and_help_probes_run_in_folders_no_seat_owns() {
+    let e = setup();
+    let t = text(
+        &e.seat("elsewhere", &["run", "auto", "--version"])
+            .output()
+            .unwrap(),
+    );
+    assert!(t.contains("ARGS=--version") && t.contains("SEAT="), "{t}");
+    // A real session there is still refused.
+    let t = text(&e.seat("elsewhere", &["run", "auto"]).output().unwrap());
+    assert!(t.contains("not assigned") && !t.contains("CFG="), "{t}");
+}
+
+#[test]
 fn shared_start_folder_grants_only_the_seats_own_folders() {
     let e = setup();
     let out = e.seat("start", &["run", "a", "-p", "hi"]).output().unwrap();
@@ -1124,9 +1164,20 @@ fn a_recorded_account_without_a_login_is_signed_out() {
     );
     // Claude Code's default folder coming back while no seat uses it is reported.
     assert!(!t.contains("no seat uses it"), "{t}");
-    fs::create_dir_all(e.home.join(".claude")).unwrap();
+    // Only folders the desktop app or a tool left behind (empty ones, a skill) are an info line, not a warning.
+    fs::create_dir_all(e.home.join(".claude/bridge-spawn")).unwrap();
     let t = text(&e.seat("", &["doctor"]).output().unwrap());
-    assert!(t.contains("~/.claude exists but no seat uses it"), "{t}");
+    assert!(
+        t.contains("info   ~/.claude holds no settings or sessions, only: bridge-spawn")
+            && !t.contains("no seat uses it"),
+        "{t}"
+    );
+    fs::write(e.home.join(".claude/CLAUDE.md"), "x").unwrap();
+    let t = text(&e.seat("", &["doctor"]).output().unwrap());
+    assert!(
+        t.contains("warn   ~/.claude holds settings or sessions but no seat uses it"),
+        "{t}"
+    );
 }
 
 #[test]

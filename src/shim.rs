@@ -57,6 +57,41 @@ pub fn installed() -> bool {
     file().is_file()
 }
 
+/// Whether a fresh login shell finds the shim first: what a new terminal (or a tool starting one) would get.
+/// `None` when that can't be told (Windows, no `$SHELL`, the shell didn't answer in time).
+pub fn first_in_login_shell() -> Option<bool> {
+    if cfg!(windows) {
+        return None;
+    }
+    let shell = std::env::var_os("SHELL")?;
+    let mut child = std::process::Command::new(shell)
+        .args(["-lic", "command -v claude"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        match child.try_wait().ok()? {
+            Some(_) => break,
+            None if std::time::Instant::now() > deadline => {
+                let _ = child.kill();
+                return None;
+            }
+            None => std::thread::sleep(std::time::Duration::from_millis(50)),
+        }
+    }
+    let mut out = String::new();
+    std::io::Read::read_to_string(&mut child.stdout.take()?, &mut out).ok()?;
+    let found = std::path::PathBuf::from(out.lines().last()?.trim());
+    Some(
+        found
+            .parent()
+            .is_some_and(|d| crate::folders::key_string(d) == crate::folders::key_string(&dir())),
+    )
+}
+
 /// Whether the shim folder comes before every other folder with a `claude` on PATH.
 pub fn first_on_path() -> bool {
     let shim = crate::folders::key_string(&dir());

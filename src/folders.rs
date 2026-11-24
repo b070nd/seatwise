@@ -55,8 +55,38 @@ pub fn key_string(p: &Path) -> String {
     key(&normalize(p, &paths::home())).join("/")
 }
 
-/// Owner of an already-normalized path, or `None` if no configured folder contains it.
+/// The main checkout of the git worktree `path` lies in, when the worktree is a linked one (`git worktree add`,
+/// which Claude Code and agent tools use for isolated threads). Reads `.git` files only; runs no git.
+pub fn worktree_main(path: &Path) -> Option<PathBuf> {
+    for dir in path.ancestors() {
+        let dot_git = dir.join(".git");
+        let Ok(text) = std::fs::read_to_string(&dot_git) else {
+            if dot_git.is_dir() {
+                return None; // a main checkout (or a plain clone): nothing to follow
+            }
+            continue;
+        };
+        let gitdir = text.trim().strip_prefix("gitdir:")?.trim();
+        let gitdir = normalize(Path::new(gitdir), dir);
+        // <main>/.git/worktrees/<name>; the folder name is what makes it a linked worktree.
+        let common = gitdir
+            .parent()
+            .filter(|p| p.file_name().is_some_and(|n| n == "worktrees"))?;
+        return common.parent()?.parent().map(Path::to_path_buf);
+    }
+    None
+}
+
+/// Owner of an already-normalized path, or `None` if no configured folder contains it. A linked git worktree
+/// outside every configured folder belongs to whoever owns its main checkout.
 pub fn owner_of<'a>(cfg: &'a Config, path: &Path) -> Option<Owner<'a>> {
+    owner_in(cfg, path).or_else(|| {
+        let main = worktree_main(path)?;
+        owner_in(cfg, &normalize(&main, &paths::home()))
+    })
+}
+
+fn owner_in<'a>(cfg: &'a Config, path: &Path) -> Option<Owner<'a>> {
     let target = key(path);
     let home = paths::home();
     cfg.folders
@@ -110,6 +140,29 @@ mod tests {
             "prefix match is per component"
         );
         assert_eq!(owner_of(&c, Path::new("/elsewhere")), None);
+    }
+
+    #[test]
+    fn a_linked_worktree_outside_every_folder_follows_its_main_checkout() {
+        let t = tempfile::tempdir().unwrap();
+        let root = normalize(t.path(), Path::new("/"));
+        let main = root.join("owned/repo");
+        let wt = root.join("elsewhere/thread/repo");
+        std::fs::create_dir_all(main.join(".git/worktrees/thread")).unwrap();
+        std::fs::create_dir_all(wt.join("src")).unwrap();
+        std::fs::write(
+            wt.join(".git"),
+            format!("gitdir: {}\n", main.join(".git/worktrees/thread").display()),
+        )
+        .unwrap();
+        let loose = root.join("elsewhere/plain");
+        std::fs::create_dir_all(loose.join(".git")).unwrap();
+        let c = cfg(&[(&root.join("owned"), "work")]);
+        assert_eq!(
+            owner_of(&c, &normalize(&wt.join("src/new.rs"), &root)),
+            Some(Owner::Seat("work"))
+        );
+        assert_eq!(owner_of(&c, &normalize(&loose, &root)), None, "plain clone");
     }
 
     #[cfg(unix)]

@@ -301,14 +301,21 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
                 fix: Some(Fix::ReinstallShim),
             });
         }
-        if !shim::first_on_path() {
-            out.push(finding(
+        let here = shim::first_on_path();
+        match (here, !here && shim::first_in_login_shell() == Some(true)) {
+            (true, _) => {}
+            (false, true) => out.push(finding(
+                Level::Info,
+                "this process started before the claude shim was put first on PATH; new terminals have it. \
+                 Restart this terminal or the desktop app (and tools started from it) to pick it up",
+            )),
+            _ => out.push(finding(
                 Level::Warn,
                 format!(
                     "the claude shim is installed but {} is not ahead of the real claude on PATH",
                     shim::dir().display()
                 ),
-            ));
+            )),
         }
     }
     out.sort_by_key(|f| f.level);
@@ -374,14 +381,50 @@ fn unused_default_and_logins(cfg: &Config) -> Vec<Finding> {
     let default_dir = home.join(".claude");
     let default_used = claude_seats.iter().any(|s| s.is_default_location());
     if !default_used && default_dir.is_dir() {
-        out.push(finding(
-            Level::Warn,
-            format!(
-                "{} exists but no seat uses it: something started Claude Code without a seat (a plain `claude`, or \
-                 the desktop app from the Dock or Finder). Sessions there have no seat, hooks or pinned org",
-                paths::contract(&default_dir)
-            ),
-        ));
+        // Only state or instructions prove a session ran there; the desktop app and some tools create empty
+        // folders (`bridge-spawn`, `ssh`) or drop a skill in whatever the seat.
+        let used = [
+            "settings.json",
+            "CLAUDE.md",
+            "projects",
+            "history.jsonl",
+            ".credentials.json",
+        ]
+        .iter()
+        .any(|n| default_dir.join(n).exists())
+            || home.join(".claude.json").exists();
+        if used {
+            out.push(finding(
+                Level::Warn,
+                format!(
+                    "{} holds settings or sessions but no seat uses it: something started Claude Code without a seat \
+                     (a plain `claude`, or the desktop app from the Dock or Finder). Sessions there have no seat, \
+                     hooks or pinned org",
+                    paths::contract(&default_dir)
+                ),
+            ));
+        } else {
+            let mut names: Vec<String> = std::fs::read_dir(&default_dir)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect();
+            names.sort();
+            out.push(finding(
+                Level::Info,
+                format!(
+                    "{} holds no settings or sessions, only: {} (created by the desktop app or a tool){}",
+                    paths::contract(&default_dir),
+                    if names.is_empty() { "nothing".into() } else { names.join(", ") },
+                    if names.iter().any(|n| n == "skills") {
+                        ". Skills there reach no seat; copy them with `share`"
+                    } else {
+                        ""
+                    }
+                ),
+            ));
+        }
     }
     let mut candidates = vec![(default_dir.clone(), true)];
     for e in std::fs::read_dir(&home).into_iter().flatten().flatten() {
