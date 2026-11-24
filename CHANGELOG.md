@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- The fresh-login-shell check behind `seat doctor`'s shim finding reads the shell's `PATH` instead of asking
+  `command -v claude`, which answers with the `claude` function `seat shell-init` defines.
+
 ## [0.4.4] - 2026-11-24
 
 ### Fixed

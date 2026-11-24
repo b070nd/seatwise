@@ -65,7 +65,7 @@ pub fn first_in_login_shell() -> Option<bool> {
     }
     let shell = std::env::var_os("SHELL")?;
     let mut child = std::process::Command::new(shell)
-        .args(["-lic", "command -v claude"])
+        .args(["-lic", "printf '%s' \"$PATH\""])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
@@ -84,18 +84,18 @@ pub fn first_in_login_shell() -> Option<bool> {
     }
     let mut out = String::new();
     std::io::Read::read_to_string(&mut child.stdout.take()?, &mut out).ok()?;
-    let found = std::path::PathBuf::from(out.lines().last()?.trim());
-    Some(
-        found
-            .parent()
-            .is_some_and(|d| crate::folders::key_string(d) == crate::folders::key_string(&dir())),
-    )
+    // The last line: an interactive shell may print a banner first.
+    Some(first_in(std::ffi::OsStr::new(out.lines().last()?.trim())))
 }
 
 /// Whether the shim folder comes before every other folder with a `claude` on PATH.
 pub fn first_on_path() -> bool {
+    first_in(&std::env::var_os("PATH").unwrap_or_default())
+}
+
+fn first_in(path: &std::ffi::OsStr) -> bool {
     let shim = crate::folders::key_string(&dir());
-    for d in std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()) {
+    for d in std::env::split_paths(path) {
         if crate::folders::key_string(&d) == shim {
             return true;
         }
