@@ -96,6 +96,40 @@ impl ConfigFile {
         })
     }
 
+    /// Every name a seat answers to, for "unknown seat" messages.
+    fn seat_labels(&mut self) -> Vec<String> {
+        let mut out = Vec::new();
+        for t in self.tables("seat").iter() {
+            out.extend(t.get("name").and_then(|v| v.as_str()).map(String::from));
+            if let Some(a) = t.get("aliases").and_then(|v| v.as_array()) {
+                out.extend(a.iter().filter_map(|x| x.as_str()).map(String::from));
+            }
+        }
+        out
+    }
+
+    fn seat_table_checked(&mut self, name: &str) -> Result<&mut Table> {
+        if self.seat_table(name).is_none() {
+            let known = self.seat_labels();
+            let known: Vec<&str> = known.iter().map(String::as_str).collect();
+            bail!("{}", crate::suggest::unknown("seat", name, &known));
+        }
+        Ok(self.seat_table(name).expect("checked above"))
+    }
+
+    fn group_table_checked(&mut self, name: &str) -> Result<&mut Table> {
+        if self.group_table(name).is_none() {
+            let known: Vec<String> = self
+                .tables("group")
+                .iter()
+                .filter_map(|t| t.get("name").and_then(|v| v.as_str()).map(String::from))
+                .collect();
+            let known: Vec<&str> = known.iter().map(String::as_str).collect();
+            bail!("{}", crate::suggest::unknown("group", name, &known));
+        }
+        Ok(self.group_table(name).expect("checked above"))
+    }
+
     pub fn add_seat(&mut self, name: &str, config_dir: &str, aliases: &[String]) -> Result<()> {
         if self.seat_table(name).is_some() {
             bail!("seat '{name}' already exists");
@@ -112,18 +146,14 @@ impl ConfigFile {
 
     /// Set a string field of a seat.
     pub fn set_seat(&mut self, seat: &str, key: &str, v: &str) -> Result<()> {
-        let t = self
-            .seat_table(seat)
-            .with_context(|| format!("unknown seat '{seat}'"))?;
+        let t = self.seat_table_checked(seat)?;
         t[key] = value(v);
         Ok(())
     }
 
     /// Set a field of a seat's `[seat.desktop]` table, creating the table after the seat's own keys.
     pub fn set_seat_desktop(&mut self, seat: &str, key: &str, v: &str) -> Result<()> {
-        let t = self
-            .seat_table(seat)
-            .with_context(|| format!("unknown seat '{seat}'"))?;
+        let t = self.seat_table_checked(seat)?;
         if !t.contains_key("desktop") {
             t.insert("desktop", Item::Table(Table::new()));
         }
@@ -148,9 +178,7 @@ impl ConfigFile {
         email: Option<&str>,
         plan: Option<&str>,
     ) -> Result<()> {
-        let t = self
-            .seat_table(seat)
-            .with_context(|| format!("unknown seat '{seat}'"))?;
+        let t = self.seat_table_checked(seat)?;
         for (k, v) in [
             ("org_uuid", org_uuid),
             ("org_name", org_name),
@@ -206,9 +234,7 @@ impl ConfigFile {
         key: &str,
         v: Option<toml_edit::Value>,
     ) -> Result<()> {
-        let t = self
-            .seat_table(seat)
-            .with_context(|| format!("unknown seat '{seat}'"))?;
+        let t = self.seat_table_checked(seat)?;
         match v {
             Some(v) => {
                 t[key] = Item::Value(v);
@@ -222,9 +248,7 @@ impl ConfigFile {
 
     /// `enabled = false` on a seat, or the key removed (enabled is the default).
     pub fn set_seat_enabled(&mut self, seat: &str, on: bool) -> Result<()> {
-        let t = self
-            .seat_table(seat)
-            .with_context(|| format!("unknown seat '{seat}'"))?;
+        let t = self.seat_table_checked(seat)?;
         if on {
             t.remove("enabled");
         } else {
@@ -270,8 +294,7 @@ impl ConfigFile {
     }
 
     pub fn set_preset_enabled(&mut self, cfg: &Config, name: &str, on: bool) -> Result<()> {
-        let p =
-            crate::preset::get(cfg, name).with_context(|| format!("unknown preset '{name}'"))?;
+        let p = crate::preset::get(cfg, name).with_context(|| crate::preset::unknown(cfg, name))?;
         let t = self.table_at(&["preset", name])?;
         if p.builtin && !t.contains_key("profiles") {
             t["description"] = value(p.description.as_str());
@@ -299,9 +322,7 @@ impl ConfigFile {
     }
 
     pub fn set_group(&mut self, name: &str, key: &str, v: Option<toml_edit::Value>) -> Result<()> {
-        let t = self
-            .group_table(name)
-            .with_context(|| format!("unknown group '{name}'"))?;
+        let t = self.group_table_checked(name)?;
         match v {
             Some(v) => {
                 t[key] = Item::Value(v);

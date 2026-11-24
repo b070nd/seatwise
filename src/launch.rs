@@ -46,8 +46,7 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
     } else if seat_arg == "auto" {
         resolve_auto(cfg, owner, &cwd)?
     } else {
-        cfg.seat(seat_arg)
-            .with_context(|| format!("unknown seat '{seat_arg}' (known: {})", cfg.seat_names()))?
+        cfg.seat_named(seat_arg)?
     };
     if !cfg.is_enabled(seat) {
         let why = if seat.enabled {

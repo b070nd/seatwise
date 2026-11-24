@@ -27,6 +27,7 @@ pub mod shell;
 pub mod shim;
 pub mod skills;
 pub mod status;
+pub mod suggest;
 pub mod sync;
 pub mod term;
 pub mod tui;

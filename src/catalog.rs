@@ -133,23 +133,10 @@ pub fn lookup(name: &str) -> Option<&'static Entry> {
 
 /// Known names within two edits of `name` (typos: `efortLevel` → `effortLevel`), closest first.
 pub fn near(name: &str) -> Vec<&'static Entry> {
-    fn distance(a: &str, b: &str) -> usize {
-        let (a, b): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
-        let mut prev: Vec<usize> = (0..=b.len()).collect();
-        for (i, ca) in a.iter().enumerate() {
-            let mut cur = vec![i + 1];
-            for (j, cb) in b.iter().enumerate() {
-                let sub = prev[j] + usize::from(!ca.eq_ignore_ascii_case(cb));
-                cur.push(sub.min(prev[j + 1] + 1).min(cur[j] + 1));
-            }
-            prev = cur;
-        }
-        prev[b.len()]
-    }
     let mut hits: Vec<(usize, &Entry)> = CATALOG
         .entries
         .iter()
-        .map(|e| (distance(name, &e.name), e))
+        .map(|e| (crate::suggest::distance(name, &e.name), e))
         .filter(|(d, _)| *d <= 2)
         .collect();
     hits.sort_by_key(|(d, e)| (*d, e.name.len()));

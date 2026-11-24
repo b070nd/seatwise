@@ -482,7 +482,7 @@ fn compact_cmd(seat: Option<String>, value: Option<String>) -> Result<i32> {
         (seat, None) => {
             let seats: Vec<&Seat> = match seat.as_deref() {
                 None | Some("all") => cfg.seats.iter().collect(),
-                Some(s) => vec![cfg.seat(s).with_context(|| format!("unknown seat '{s}'"))?],
+                Some(s) => vec![cfg.seat_named(s)?],
             };
             if let Some(g) = &cfg.compact {
                 println!(
@@ -509,11 +509,7 @@ fn compact_cmd(seat: Option<String>, value: Option<String>) -> Result<i32> {
                     file.set(&[], "compact", (!off).then(|| value.as_str().into()))?;
                 }
                 Some(s) => {
-                    let name = cfg
-                        .seat(s)
-                        .with_context(|| format!("unknown seat '{s}'"))?
-                        .name
-                        .clone();
+                    let name = cfg.seat_named(s)?.name.clone();
                     file.set_seat(&name, "compact", &value)?;
                 }
             }
@@ -681,10 +677,7 @@ fn pick_seats<'a>(cfg: &'a Config, names: &[String]) -> Result<Vec<&'a Seat>> {
     if names.is_empty() {
         return Ok(cfg.seats.iter().collect());
     }
-    names
-        .iter()
-        .map(|s| cfg.seat(s).with_context(|| format!("unknown seat '{s}'")))
-        .collect()
+    names.iter().map(|s| cfg.seat_named(s)).collect()
 }
 
 /// The seat for a folder: its owner, else the session's seat, else default_seat.
@@ -878,9 +871,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             let lines = match seat {
                 None => seatwise::desktop::status(&cfg, &exe),
                 Some(s) => {
-                    let seat = cfg
-                        .seat(&s)
-                        .with_context(|| format!("unknown seat '{s}' ({})", cfg.seat_names()))?;
+                    let seat = cfg.seat_named(&s)?;
                     seatwise::desktop::open(&cfg, seat, &exe)?
                 }
             };
@@ -899,11 +890,7 @@ fn run(cmd: Cmd) -> Result<i32> {
         } => {
             let cfg = Config::load()?;
             let seat = match seat {
-                Some(s) => cfg
-                    .seat(&s)
-                    .with_context(|| format!("unknown seat '{s}'"))?
-                    .name
-                    .clone(),
+                Some(s) => cfg.seat_named(&s)?.name.clone(),
                 None => {
                     link::current_seat(&cfg).map_or_else(|| "auto".to_string(), |s| s.name.clone())
                 }
@@ -940,10 +927,7 @@ fn run(cmd: Cmd) -> Result<i32> {
         }
         Cmd::Home(HomeCmd::Init { seat, path }) => {
             let cfg = Config::load()?;
-            let seat = cfg
-                .seat(&seat)
-                .with_context(|| format!("unknown seat '{seat}'"))?
-                .clone();
+            let seat = cfg.seat_named(&seat)?.clone();
             let dir = match path {
                 Some(p) => here_or(Some(p))?,
                 None => seat
@@ -1091,11 +1075,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             }
             let cfg = file.config()?;
             let source = match &from {
-                Some(f) => Some(
-                    cfg.seat(f)
-                        .with_context(|| format!("unknown seat '{f}'"))?
-                        .clone(),
-                ),
+                Some(f) => Some(cfg.seat_named(f)?.clone()),
                 None => None,
             };
             file.save()?;
@@ -1126,9 +1106,7 @@ fn run(cmd: Cmd) -> Result<i32> {
         }
         Cmd::Login { seat } => {
             let cfg = Config::load()?;
-            let seat = cfg
-                .seat(&seat)
-                .with_context(|| format!("unknown seat '{seat}'"))?;
+            let seat = cfg.seat_named(&seat)?;
             let code = launch::login(seat)?;
             if code == 0
                 && seat.org_uuid.is_none()
@@ -1144,9 +1122,7 @@ fn run(cmd: Cmd) -> Result<i32> {
         }
         Cmd::Pin { seat } => {
             let cfg = Config::load()?;
-            let seat = cfg
-                .seat(&seat)
-                .with_context(|| format!("unknown seat '{seat}'"))?;
+            let seat = cfg.seat_named(&seat)?;
             println!("{}", pin(seat)?);
             Ok(0)
         }
@@ -1163,9 +1139,7 @@ fn run(cmd: Cmd) -> Result<i32> {
         Cmd::Compact { seat, value } => compact_cmd(seat, value),
         Cmd::Profile { seat, name, usage } => {
             let cfg = Config::load()?;
-            let seat = cfg
-                .seat(&seat)
-                .with_context(|| format!("unknown seat '{seat}'"))?;
+            let seat = cfg.seat_named(&seat)?;
             match name {
                 Some(name) => {
                     plan::apply(&cfg, seat, &name)?;
@@ -1303,8 +1277,8 @@ fn run(cmd: Cmd) -> Result<i32> {
             let owner = match owner.as_str() {
                 seatwise::config::ANY | seatwise::config::NONE => owner,
                 s => cfg
-                    .seat(s)
-                    .with_context(|| format!("unknown seat '{s}' (or use \"any\" / \"none\")"))?
+                    .seat_named(s)
+                    .map_err(|e| anyhow::anyhow!("{e}; or use \"any\" / \"none\""))?
                     .name
                     .clone(),
             };
@@ -1359,9 +1333,7 @@ fn run(cmd: Cmd) -> Result<i32> {
         }
         Cmd::Show { seat, json } => {
             let cfg = Config::load()?;
-            let s = cfg
-                .seat(&seat)
-                .with_context(|| format!("unknown seat '{seat}' (`seat list`)"))?;
+            let s = cfg.seat_named(&seat)?;
             let v = seatwise::view::seat(&cfg, s, &exe, &seatwise::desktop::running(&cfg));
             if json {
                 println!("{}", serde_json::to_string_pretty(&v)?);
@@ -1512,9 +1484,7 @@ fn run(cmd: Cmd) -> Result<i32> {
         }
         Cmd::Sync(SyncCmd::Restore { seat }) => {
             let cfg = Config::load()?;
-            let seat = cfg
-                .seat(&seat)
-                .with_context(|| format!("unknown seat '{seat}'"))?;
+            let seat = cfg.seat_named(&seat)?;
             for note in sync::restore(seat, &cfg.track)? {
                 println!("{note}");
             }
@@ -1568,9 +1538,7 @@ fn run(cmd: Cmd) -> Result<i32> {
             let cfg = Config::load()?;
             let dir = here_or(path)?;
             let seat = match seat {
-                Some(s) => cfg
-                    .seat(&s)
-                    .with_context(|| format!("unknown seat '{s}'"))?,
+                Some(s) => cfg.seat_named(&s)?,
                 None => seat_here(&cfg, &dir)
                     .with_context(|| format!("no seat for {}; pass --seat", dir.display()))?,
             };
@@ -1824,7 +1792,7 @@ fn run(cmd: Cmd) -> Result<i32> {
         Cmd::Preset(PresetCmd::Show { name }) => {
             let cfg = Config::load()?;
             let p = seatwise::preset::get(&cfg, &name)
-                .with_context(|| format!("unknown preset '{name}'"))?;
+                .with_context(|| seatwise::preset::unknown(&cfg, &name))?;
             println!("{}: {}", p.name, p.description);
             println!(
                 "{}",

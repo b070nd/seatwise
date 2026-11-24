@@ -280,6 +280,28 @@ fn doctor_flags_nested_seat_folders_and_an_unguarded_codex_home() {
 }
 
 #[test]
+fn unknown_names_say_what_was_probably_meant() {
+    let e = setup();
+    let t = text(&e.seat("proj-a", &["run", "alpah"]).output().unwrap());
+    assert!(
+        t.contains("unknown seat 'alpah' (maybe you meant 'alpha'; known: a, alpha, b"),
+        "{t}"
+    );
+    let t = text(&e.seat("", &["show", "c"]).output().unwrap());
+    assert!(t.contains("unknown seat 'c' (known: "), "{t}");
+    let t = text(&e.seat("", &["preset", "show", "buidl"]).output().unwrap());
+    assert!(
+        t.contains("unknown preset 'buidl' (maybe you meant 'build'"),
+        "{t}"
+    );
+    let t = text(&e.seat("", &["link", "bb", "elsewhere"]).output().unwrap());
+    assert!(
+        t.contains("maybe you meant 'b'") && t.contains("or use \"any\""),
+        "{t}"
+    );
+}
+
+#[test]
 fn version_and_help_probes_run_in_folders_no_seat_owns() {
     let e = setup();
     let t = text(

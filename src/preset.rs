@@ -79,6 +79,13 @@ pub fn get(cfg: &Config, name: &str) -> Option<Preset> {
 }
 
 /// Every preset, built-in ones first (unless replaced), then yours by name.
+/// `unknown preset 'x'`, naming the likely one and the presets there are.
+pub fn unknown(cfg: &Config, name: &str) -> String {
+    let all = all(cfg);
+    let names: Vec<&str> = all.iter().map(|p| p.name.as_str()).collect();
+    crate::suggest::unknown("preset", name, &names)
+}
+
 pub fn all(cfg: &Config) -> Vec<Preset> {
     let mut out: Vec<Preset> = BUILTIN
         .iter()

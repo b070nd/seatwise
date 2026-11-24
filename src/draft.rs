@@ -158,8 +158,8 @@ impl Draft {
 
     /// A draft of an existing preset (yours or a built-in), to change or to copy under a new name.
     pub fn from_preset(cfg: &Config, preset: &str, name: &str) -> Result<Self> {
-        let p = crate::preset::get(cfg, preset)
-            .with_context(|| format!("unknown preset '{preset}' (`seat preset list`)"))?;
+        let p =
+            crate::preset::get(cfg, preset).with_context(|| crate::preset::unknown(cfg, preset))?;
         Ok(Draft {
             name: name.into(),
             description: p.description,

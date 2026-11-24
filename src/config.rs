@@ -718,6 +718,20 @@ impl Config {
     }
 
     /// Find a seat by name or alias.
+    /// The seat called `name` (or an alias), or an error that names the likely one.
+    pub fn seat_named(&self, name: &str) -> Result<&Seat> {
+        self.seat(name).ok_or_else(|| {
+            let names: Vec<&str> = self
+                .seats
+                .iter()
+                .flat_map(|s| {
+                    std::iter::once(s.name.as_str()).chain(s.aliases.iter().map(String::as_str))
+                })
+                .collect();
+            anyhow::anyhow!("{}", crate::suggest::unknown("seat", name, &names))
+        })
+    }
+
     pub fn seat(&self, name: &str) -> Option<&Seat> {
         self.seats
             .iter()

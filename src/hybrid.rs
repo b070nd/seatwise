@@ -48,7 +48,7 @@ fn project_dir(opts: &Options) -> Result<PathBuf> {
 
 fn pick_seat<'a>(cfg: &'a Config, opts: &Options, root: &Path) -> Result<&'a Seat> {
     if let Some(s) = &opts.seat {
-        return cfg.seat(s).with_context(|| format!("unknown seat '{s}'"));
+        return cfg.seat_named(s);
     }
     if let Some(s) = link::current_seat(cfg) {
         return Ok(s);
@@ -276,7 +276,7 @@ pub fn plan(cfg: &Config, exe: &Path, opts: &Options) -> Result<Plan> {
     // 3. The project's preset.
     if let Some(p) = &opts.preset {
         if p != crate::config::NONE && preset::get(cfg, p).is_none() {
-            bail!("unknown preset '{p}' (`seat preset list`)");
+            bail!("{}", preset::unknown(cfg, p));
         }
         steps.push(step("preset", Status::Change, format!("would become {p}")));
     } else {

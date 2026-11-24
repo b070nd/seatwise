@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- A seat, preset or group name that doesn't exist now says what it probably meant: `unknown seat 'wrk' (maybe you
+  meant 'work'; known: work, frontier, personal)`. One lookup does it for every command, and the edit-distance
+  helper is shared with the settings catalog's typo hints.
+
 ## [0.5.0] - 2026-11-24
 
 ### Added
