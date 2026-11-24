@@ -3,7 +3,7 @@
 use crate::config::{Agent, Config, Enforcement, Seat};
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Account {
@@ -113,8 +113,44 @@ pub fn read_account_from(state_file: &Path) -> Option<Account> {
 pub const TOOL_MATCHER: &str =
     "Read|Edit|Write|MultiEdit|NotebookEdit|Glob|Grep|LS|Bash|PowerShell";
 
+/// The version of what seatwise's hooks expect from the host and promise to it: the hook events and their input
+/// fields, exit 2 to block, the JSON for a warning. It is stamped into each hook command (`--contract N`), so
+/// `seat doctor` and the launcher can tell hooks written for another contract. Raise it when that changes.
+pub const HOOK_CONTRACT: u32 = 1;
+
 fn hook_command(exe: &Path, kind: &str, seat: &str) -> String {
-    format!("\"{}\" hook {kind} {seat}", exe.display())
+    format!(
+        "\"{}\" hook {kind} {seat} --contract {HOOK_CONTRACT}",
+        exe.display()
+    )
+}
+
+/// A seatwise hook command taken apart: binary, kind (`prompt`/`tool`), seat, contract (none before 0.8.0).
+fn parse_hook(command: &str) -> Option<(PathBuf, &str, &str, Option<u32>)> {
+    let rest = command.strip_prefix('"')?;
+    let (exe, rest) = rest.split_once("\" hook ")?;
+    let mut words = rest.split_whitespace();
+    let kind = words.next()?;
+    let seat = words.next()?;
+    let contract = match (words.next(), words.next()) {
+        (Some("--contract"), Some(n)) => Some(n.parse().ok()?),
+        (None, _) => None,
+        _ => return None,
+    };
+    Some((PathBuf::from(exe), kind, seat, contract))
+}
+
+/// The same file, also when reached through another path (a symlink such as `~/.local/bin/seat`).
+fn same_binary(a: &Path, b: &Path) -> bool {
+    a == b || matches!((dunce::canonicalize(a), dunce::canonicalize(b)), (Ok(x), Ok(y)) if x == y)
+}
+
+/// The hook contract a seat's installed hooks were written for (`None`: no hooks, or written before contracts).
+pub fn hook_contract(seat: &Seat) -> Option<u32> {
+    our_hooks(seat)?
+        .iter()
+        .filter_map(|c| parse_hook(c).and_then(|h| h.3))
+        .min()
 }
 
 fn is_ours(command: &str) -> bool {
@@ -130,13 +166,11 @@ pub enum HookState {
     Stale,
 }
 
-pub fn hook_state(seat: &Seat, exe: &Path) -> HookState {
-    let Some(settings) = std::fs::read_to_string(seat.hooks_file())
+/// The commands of seatwise's hooks in a seat's settings.json (`None` when it can't be read).
+fn our_hooks(seat: &Seat) -> Option<Vec<String>> {
+    let settings = std::fs::read_to_string(seat.hooks_file())
         .ok()
-        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-    else {
-        return HookState::Missing;
-    };
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())?;
     let mut ours = Vec::new();
     for event in ["UserPromptSubmit", "PreToolUse"] {
         for group in settings["hooks"][event].as_array().into_iter().flatten() {
@@ -147,13 +181,23 @@ pub fn hook_state(seat: &Seat, exe: &Path) -> HookState {
             }
         }
     }
-    let want = [
-        hook_command(exe, "prompt", &seat.name),
-        hook_command(exe, "tool", &seat.name),
-    ];
+    Some(ours)
+}
+
+pub fn hook_state(seat: &Seat, exe: &Path) -> HookState {
+    let Some(ours) = our_hooks(seat) else {
+        return HookState::Missing;
+    };
+    let current = |kind: &str| {
+        ours.iter()
+            .filter_map(|c| parse_hook(c))
+            .any(|(e, k, s, c)| {
+                k == kind && s == seat.name && c == Some(HOOK_CONTRACT) && same_binary(&e, exe)
+            })
+    };
     match ours.len() {
         0 => HookState::Missing,
-        2 if want.iter().all(|w| ours.contains(w)) => HookState::Current,
+        2 if current("prompt") && current("tool") => HookState::Current,
         _ => HookState::Stale,
     }
 }
@@ -304,7 +348,10 @@ mod tests {
             "user group kept, old seatwise group replaced: {pre:?}"
         );
         assert_eq!(pre[0]["hooks"][0]["command"], "my-linter");
-        assert_eq!(pre[1]["hooks"][0]["command"], "\"/bin/seat\" hook tool w");
+        assert_eq!(
+            pre[1]["hooks"][0]["command"],
+            format!("\"/bin/seat\" hook tool w --contract {HOOK_CONTRACT}")
+        );
         assert_eq!(pre[1]["matcher"], TOOL_MATCHER);
         assert_eq!(s["hooks"]["UserPromptSubmit"].as_array().unwrap().len(), 1);
 
@@ -323,5 +370,25 @@ mod tests {
         merge_hooks(&mut only_ours, Path::new("/bin/seat"), "w", Some("Read"));
         remove_hooks(&mut only_ours);
         assert_eq!(only_ours, json!({}), "no empty leftovers");
+    }
+
+    #[test]
+    fn hook_commands_carry_the_contract() {
+        let cmd = hook_command(Path::new("/my dir/seat"), "prompt", "w");
+        assert_eq!(
+            parse_hook(&cmd),
+            Some((
+                PathBuf::from("/my dir/seat"),
+                "prompt",
+                "w",
+                Some(HOOK_CONTRACT)
+            ))
+        );
+        assert_eq!(
+            parse_hook("\"/old/seat\" hook tool w"),
+            Some((PathBuf::from("/old/seat"), "tool", "w", None)),
+            "hooks from before contracts"
+        );
+        assert_eq!(parse_hook("my-linter"), None);
     }
 }

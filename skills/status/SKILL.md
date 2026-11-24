@@ -13,7 +13,7 @@ description: Show which seat (account) this session runs on, its plan, how much 
 
 Answer in a few lines: seat, account, plan, usage per window with reset time, and the suggested profile.
 Applying a profile changes the seat's settings.json: run `"{{seat}}" profile <seat> <name>` only when the user
-says so. If seatwise blocked something, `"{{seat}}" doctor` explains why; don't use `SEATWISE_FORCE` yourself.
+says so. If seatwise blocked something, `"{{seat}}" doctor` explains why; don't use `SEATWISE_FORCE` yourself (it is ignored inside a session, and the guard treats setting it as a bypass).
 
 seatwise hides account identifiers in what it prints (`<org:work>`, `<email:work>`). Don't read its config file
 or any seat's account or credential files to find them, and don't try to reveal them.

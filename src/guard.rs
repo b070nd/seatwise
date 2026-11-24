@@ -7,10 +7,36 @@ use crate::paths;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
-/// `SEATWISE_FORCE=1` skips every check (e.g. to run `/login` on a seat signed into the wrong org).
+/// `SEATWISE_FORCE=1` gets one start past the start checks (e.g. to run `/login` on a seat signed into the wrong
+/// org). Honoured only from a terminal you type in: never inside an agent session and never in a hook (its input
+/// is a pipe), so a session can't lift its own guard. The hooks of a forced session still check it.
 pub fn forced() -> bool {
-    std::env::var_os("SEATWISE_FORCE").is_some_and(|v| !v.is_empty())
+    force_honoured(
+        std::env::var_os("SEATWISE_FORCE").is_some_and(|v| !v.is_empty()),
+        crate::privacy::agent(),
+        std::io::IsTerminal::is_terminal(&std::io::stdin()),
+    )
 }
+
+/// Whether `SEATWISE_FORCE` is set but ignored (inside an agent, or without a terminal).
+pub fn force_ignored() -> bool {
+    std::env::var_os("SEATWISE_FORCE").is_some_and(|v| !v.is_empty()) && !forced()
+}
+
+fn force_honoured(set: bool, agent: bool, terminal: bool) -> bool {
+    set && !agent && terminal
+}
+
+/// Variables that pick a seat or lift its guard. A shell command that sets or clears one would start the agent (or
+/// seatwise) on another seat's login, another config, or without the checks.
+pub const GUARD_VARS: [&str; 6] = [
+    "SEATWISE_FORCE",
+    "SEATWISE_SEAT",
+    "SEATWISE_CONFIG",
+    "SEATWISE_REVEAL",
+    "CLAUDE_CONFIG_DIR",
+    "CODEX_HOME",
+];
 
 /// Why the guard says no: what is wrong and, separately, what to do about it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,8 +169,9 @@ impl Verdict {
 
 /// UserPromptSubmit: prompts in a folder or org that isn't this seat's.
 pub fn hook_prompt(cfg: &Config, seat: &Seat, input: &Value) -> Verdict {
+    // No SEATWISE_FORCE here: a session must not be able to lift its own guard.
     let level = cfg.enforcement_of(seat);
-    if forced() || level == Enforcement::Off {
+    if level == Enforcement::Off {
         return Verdict::Allow;
     }
     let dir = std::env::var_os("CLAUDE_PROJECT_DIR")
@@ -167,8 +194,9 @@ pub fn hook_prompt(cfg: &Config, seat: &Seat, input: &Value) -> Verdict {
 
 /// PreToolUse: file tools and shell commands that reach into another seat's folders.
 pub fn hook_tool(cfg: &Config, seat: &Seat, input: &Value) -> Verdict {
+    // No SEATWISE_FORCE here: a session must not be able to lift its own guard.
     let level = cfg.enforcement_of(seat);
-    if forced() || level == Enforcement::Off {
+    if level == Enforcement::Off {
         return Verdict::Allow;
     }
     let cwd = input["cwd"]
@@ -182,8 +210,146 @@ pub fn hook_tool(cfg: &Config, seat: &Seat, input: &Value) -> Verdict {
         // Codex's tools (shell, apply_patch, ...) aren't Claude Code's: scan everything in the input.
         paths.extend(scan_any(&input["tool_input"], &cwd));
     }
-    let check = paths.iter().try_for_each(|p| check_access(cfg, seat, p));
+    let check = check_command(&input["tool_input"]["command"])
+        .and_then(|()| paths.iter().try_for_each(|p| check_access(cfg, seat, p)));
     Verdict::at(level, check)
+}
+
+/// A shell command (a string, or a command vector as Codex sends it) must not set or clear a [`GUARD_VARS`]
+/// variable. Only assignments that take effect count: words at the start of a command (`VAR=1 claude`), after
+/// `env`, `export`, `declare`, `typeset`, `local`, `readonly`, `unset`, `setenv`, `set -x`, and PowerShell's
+/// `$env:VAR`. Quoted words with spaces are read as commands too (`bash -c '...'`, `eval "..."`).
+pub fn check_command(command: &Value) -> Result<(), Refusal> {
+    let found = match command {
+        Value::String(s) => command_sets(s, 0),
+        Value::Array(a) => {
+            let words: Vec<String> = a
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect();
+            words_set(&words, 0)
+        }
+        _ => None,
+    };
+    match found {
+        None => Ok(()),
+        Some(var) => Err(Refusal::new(format!(
+            "this command sets or clears {var}, which would get around the seat's guard."
+        ))
+        .resolve("Run it in your own terminal if you mean to.".into())),
+    }
+}
+
+fn command_sets(cmd: &str, depth: usize) -> Option<&'static str> {
+    simple_commands(cmd)
+        .iter()
+        .find_map(|w| words_set(w, depth))
+}
+
+/// The guard variable one simple command sets or clears, if any.
+fn words_set(words: &[String], depth: usize) -> Option<&'static str> {
+    let var_of = |w: &str| {
+        let name = w.split_once('=').map_or(w, |(n, _)| n);
+        GUARD_VARS.iter().copied().find(|v| *v == name)
+    };
+    let ps_env = |w: &str| {
+        let lower = w.to_ascii_lowercase();
+        ["$env:", "env:"]
+            .iter()
+            .find_map(|p| lower.starts_with(p).then(|| var_of(&w[p.len()..])))
+            .flatten()
+    };
+    if let Some(v) = words.iter().find_map(|w| ps_env(w)) {
+        return Some(v);
+    }
+    let mut i = 0;
+    // Assignments and wrappers in front of the command: `VAR=1`, `env [-u VAR] [VAR=1]`, `sudo`, `exec`, ...
+    while let Some(w) = words.get(i) {
+        if w.contains('=') && !w.starts_with('-') {
+            if let Some(v) = var_of(w) {
+                return Some(v);
+            }
+            i += 1;
+            continue;
+        }
+        let base = w.rsplit(['/', '\\']).next().unwrap_or(w);
+        match base {
+            "env" | "sudo" | "doas" | "exec" | "command" | "builtin" | "nohup" | "nice"
+            | "time" => {
+                i += 1;
+                while let Some(o) = words.get(i).filter(|o| o.starts_with('-')) {
+                    if base == "env" && matches!(o.as_str(), "-u" | "--unset") {
+                        if let Some(v) = words.get(i + 1).and_then(|n| var_of(n)) {
+                            return Some(v);
+                        }
+                        i += 1;
+                    } else if let Some(v) = o.strip_prefix("--unset=").and_then(var_of) {
+                        return Some(v);
+                    }
+                    i += 1;
+                }
+            }
+            _ => break,
+        }
+    }
+    let head = words.get(i)?;
+    let rest = &words[i + 1..];
+    let base = head.rsplit(['/', '\\']).next().unwrap_or(head);
+    match base {
+        "export" | "declare" | "typeset" | "local" | "readonly" | "unset" | "setenv" | "set" => {
+            rest.iter().find_map(|w| var_of(w))
+        }
+        "eval" if depth < 3 => command_sets(&rest.join(" "), depth + 1),
+        "sh" | "bash" | "zsh" | "dash" | "ksh" | "fish" | "pwsh" | "powershell" if depth < 3 => {
+            rest.iter()
+                .position(|o| {
+                    o.eq_ignore_ascii_case("-command")
+                        || (o.starts_with('-') && !o.starts_with("--") && o.ends_with('c'))
+                })
+                .and_then(|at| rest.get(at + 1))
+                .and_then(|script| command_sets(script, depth + 1))
+        }
+        _ => None,
+    }
+}
+
+/// A shell command split into simple commands (at `; | & ( )`, newlines and backticks), each as its words.
+fn simple_commands(cmd: &str) -> Vec<Vec<String>> {
+    let mut out = vec![Vec::new()];
+    let mut cur = String::new();
+    let mut quote: Option<char> = None;
+    let mut chars = cmd.chars().peekable();
+    let end_word = |cur: &mut String, out: &mut Vec<Vec<String>>| {
+        if !cur.is_empty() {
+            out.last_mut().unwrap().push(std::mem::take(cur));
+        }
+    };
+    while let Some(c) = chars.next() {
+        match quote {
+            Some(q) if c == q => quote = None,
+            Some(_) => cur.push(c),
+            None => match c {
+                '\'' | '"' => quote = Some(c),
+                '\\' => {
+                    if let Some(n) = chars.next() {
+                        cur.push(n);
+                    }
+                }
+                c if ";|&()`\n".contains(c) => {
+                    end_word(&mut cur, &mut out);
+                    if !out.last().unwrap().is_empty() {
+                        out.push(Vec::new());
+                    }
+                }
+                c if c.is_whitespace() => end_word(&mut cur, &mut out),
+                c => cur.push(c),
+            },
+        }
+    }
+    end_word(&mut cur, &mut out);
+    out.retain(|w| !w.is_empty());
+    out
 }
 
 /// Every path a tool call would touch, as far as can be told from its input.
@@ -419,6 +585,38 @@ mod tests {
             check_identity(&a2, None, None).is_ok(),
             "logged out: let them log in"
         );
+    }
+
+    #[test]
+    fn force_needs_a_terminal_outside_agents() {
+        assert!(force_honoured(true, false, true));
+        assert!(!force_honoured(true, true, true), "inside an agent");
+        assert!(
+            !force_honoured(true, false, false),
+            "no terminal (an agent's shell, a hook)"
+        );
+        assert!(!force_honoured(false, false, true));
+    }
+
+    #[test]
+    fn commands_that_lift_the_guard() {
+        let sets = |c: &str| check_command(&json!(c)).is_err();
+        assert!(sets("A=1 SEATWISE_FORCE=1 claude"));
+        assert!(sets("sudo -E env -i CODEX_HOME=/x codex"));
+        assert!(sets("env --unset=SEATWISE_SEAT seat run auto"));
+        assert!(sets("(cd x; export SEATWISE_REVEAL=1)"));
+        assert!(sets("echo $(SEATWISE_SEAT=b seat list)"));
+        assert!(sets("/bin/zsh -ic \"unset CLAUDE_CONFIG_DIR\""));
+        assert!(sets("eval 'SEATWISE_CONFIG=/x seat run'"));
+        assert!(check_command(&json!(["bash", "-lc", "SEATWISE_SEAT=b claude"])).is_err());
+        assert!(
+            !sets("echo SEATWISE_FORCE=1"),
+            "an argument, not an assignment"
+        );
+        assert!(!sets("printenv CLAUDE_CONFIG_DIR"));
+        assert!(!sets("set -euo pipefail"));
+        assert!(!sets("FOO=1 make"));
+        assert!(check_command(&json!(null)).is_ok());
     }
 
     #[test]

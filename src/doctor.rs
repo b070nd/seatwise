@@ -114,7 +114,21 @@ pub fn check(cfg: &Config, exe: &Path) -> Vec<Finding> {
                     "seat '{n}': enforcement is {} but its hooks are not installed, so nothing is checked",
                     st.enforcement.as_str()
                 ),
-                _ => format!("seat '{n}': its hooks point at another seatwise binary or seat name"),
+                _ => match claude::hook_contract(seat) {
+                    Some(c) if c != claude::HOOK_CONTRACT => format!(
+                        "seat '{n}': its hooks were written for hook contract {c}, this seatwise speaks {}",
+                        claude::HOOK_CONTRACT
+                    ),
+                    None => format!(
+                        "seat '{n}': its hooks are from a seatwise before hook contracts (this one speaks {})",
+                        claude::HOOK_CONTRACT
+                    ),
+                    Some(_) => {
+                        format!(
+                            "seat '{n}': its hooks point at another seatwise binary or seat name"
+                        )
+                    }
+                },
             };
             let message = if seat.agent == Agent::Codex && st.enforcement != Enforcement::Off {
                 message + " (Codex then asks you to approve them once in /hooks)"
@@ -502,17 +516,34 @@ fn unused_default_and_logins(cfg: &Config) -> Vec<Finding> {
         }
         let service = crate::usage::keychain_service_for(&dir, default_location);
         if crate::usage::keychain_has(&service) {
-            out.push(finding(
-                Level::Warn,
-                format!(
-                    "the keychain still holds a Claude Code login for {}, which no seat uses. Remove it if that \
-                     folder is retired: security delete-generic-password -s '{service}'",
-                    paths::contract(&dir)
-                ),
-            ));
+            // Never a removal command for a login that may be in use: the folder still exists (another config,
+            // a tool, plain `claude`), or it is the default login every seatless `claude` uses.
+            out.push(finding(Level::Info, unused_login(&dir, default_location)));
         }
     }
     out
+}
+
+/// What to say about a keychain login no seat in this config uses. It may still be live (used by plain `claude`,
+/// another config or a tool), so doctor only says how to use it; it never suggests removing it.
+fn unused_login(dir: &Path, default_location: bool) -> String {
+    let shown = paths::contract(dir);
+    if default_location {
+        format!(
+            "the keychain holds the default Claude Code login (for {shown}), which no seat in this config uses; \
+             plain `claude` outside seatwise still uses it"
+        )
+    } else if dir.exists() {
+        format!(
+            "the keychain holds a Claude Code login for {shown}, which no seat in this config uses: \
+             `seat add <name> --config-dir {shown}` to make it a seat"
+        )
+    } else {
+        format!(
+            "the keychain holds a Claude Code login for {shown}, which no longer exists and no seat uses. \
+             If you retired that folder, you can remove the login with Keychain Access"
+        )
+    }
 }
 
 /// Claude Code reads `.claude/CLAUDE.md` from every parent of the working folder. One sitting above another

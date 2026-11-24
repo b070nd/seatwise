@@ -399,17 +399,123 @@ fn shared_start_folder_grants_only_the_seats_own_folders() {
 }
 
 #[test]
-fn wrong_org_is_refused_unless_forced() {
+fn wrong_org_is_refused_and_force_needs_a_terminal() {
     let e = setup();
     let t = text(&e.seat("proj-b", &["run", "auto"]).output().unwrap());
     assert!(t.contains("another org") && !t.contains("CFG="), "{t}");
-    let t = text(
-        &e.seat("proj-b", &["run", "auto"])
-            .env("SEATWISE_FORCE", "1")
-            .output()
-            .unwrap(),
+    // No terminal here (as for an agent's shell): SEATWISE_FORCE counts for nothing.
+    for agent in [false, true] {
+        let mut cmd = e.seat("proj-b", &["run", "auto"]);
+        cmd.env("SEATWISE_FORCE", "1");
+        if agent {
+            cmd.env("CLAUDECODE", "1");
+        }
+        let out = cmd.output().unwrap();
+        let t = text(&out);
+        assert_eq!(out.status.code(), Some(3), "{t}");
+        assert!(
+            t.contains("SEATWISE_FORCE is ignored") && !t.contains("SEAT=b"),
+            "{t}"
+        );
+    }
+}
+
+#[test]
+fn tool_hook_blocks_commands_that_lift_the_guard() {
+    let e = setup();
+    let bash = |cmd: &str| serde_json::json!({ "tool_name": "Bash", "tool_input": { "command": cmd }, "cwd": p(&e.home.join("proj-a")) });
+    for cmd in [
+        "SEATWISE_FORCE=1 claude -p hi",
+        "cd /tmp && env -u SEATWISE_SEAT seat run auto",
+        "export CLAUDE_CONFIG_DIR=/elsewhere; claude",
+        "unset SEATWISE_CONFIG",
+        "bash -lc 'SEATWISE_SEAT=b claude'",
+        "$env:CLAUDE_CONFIG_DIR = 'x'",
+    ] {
+        let out = e.hook("tool", "a", bash(cmd));
+        assert_eq!(out.status.code(), Some(2), "{cmd}: {}", text(&out));
+    }
+    for cmd in [
+        "grep -rn SEATWISE_FORCE= src",
+        "echo $CLAUDE_CONFIG_DIR",
+        "git commit -m 'SEATWISE_FORCE=1 needs a terminal now'",
+    ] {
+        let out = e.hook("tool", "a", bash(cmd));
+        assert_eq!(out.status.code(), Some(0), "{cmd}: {}", text(&out));
+    }
+    // A session started with SEATWISE_FORCE in its environment is still checked.
+    let read = serde_json::json!({ "tool_name": "Read", "tool_input": { "file_path": p(&e.home.join("proj-b/x")) }, "cwd": p(&e.home.join("proj-a")) });
+    let mut child = e.seat("", &["hook", "tool", "a"]);
+    child.env("SEATWISE_FORCE", "1");
+    let out = {
+        use std::io::Write;
+        let mut c = child
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        c.stdin
+            .take()
+            .unwrap()
+            .write_all(read.to_string().as_bytes())
+            .unwrap();
+        c.wait_with_output().unwrap()
+    };
+    assert_eq!(out.status.code(), Some(2), "{}", text(&out));
+}
+
+#[test]
+fn strict_seat_puts_its_hooks_back_or_does_not_start() {
+    let e = setup();
+    let settings = e.home.join(".seat-a/settings.json");
+    let _ = fs::remove_file(&settings);
+    let t = text(&e.seat("proj-a", &["run", "a"]).output().unwrap());
+    assert!(
+        t.contains("guard hooks were missing") && t.contains("SEAT=a"),
+        "{t}"
     );
-    assert!(t.contains("SEAT=b"), "{t}");
+    let v = fs::read_to_string(&settings).unwrap();
+    assert!(v.contains("hook tool a --contract"), "{v}");
+    // Hooks can't be written (settings.json isn't JSON): a strict seat refuses to start.
+    fs::write(&settings, "{ not json").unwrap();
+    let out = e.seat("proj-a", &["run", "a"]).output().unwrap();
+    let t = text(&out);
+    assert_eq!(out.status.code(), Some(3), "{t}");
+    assert!(
+        t.contains("couldn't be put back") && !t.contains("SEAT=a"),
+        "{t}"
+    );
+    assert!(t.contains("resolution: Fix"), "{t}");
+}
+
+#[test]
+fn identities_and_session_wiring_do_not_reach_the_agent() {
+    let e = setup();
+    let run = |inside: bool| {
+        let mut cmd = e.seat("proj-a", &["run", "a"]);
+        cmd.env("CLAUDE_CODE_ACCOUNT_UUID", "acct")
+            .env("CLAUDE_CODE_USER_EMAIL", "me@example.com")
+            .env("CLAUDE_CODE_WARN_DISK_FREE_GIB", "7")
+            .env("ANTHROPIC_BASE_URL", "http://localhost:9");
+        if inside {
+            cmd.env("CLAUDECODE", "1");
+        }
+        text(&cmd.output().unwrap())
+    };
+    let t = run(false);
+    assert!(
+        t.contains("DISKWARN=7") && t.contains("BASE=http://localhost:9"),
+        "own shell settings pass: {t}"
+    );
+    assert!(t.contains("IDS=none"), "{t}");
+    let t = run(true);
+    assert!(
+        t.contains("DISKWARN=\n") || t.contains("DISKWARN=\r"),
+        "a session's wiring doesn't: {t}"
+    );
+    assert!(t.contains("BASE=\n") || t.contains("BASE=\r"), "{t}");
+    assert!(t.contains("IDS=none"), "{t}");
 }
 
 #[test]
@@ -1145,7 +1251,9 @@ fn run_with_a_profile_passes_session_settings_only() {
         "{t}"
     );
     assert!(
-        !e.home.join(".seat-a/settings.json").exists(),
+        !fs::read_to_string(e.home.join(".seat-a/settings.json"))
+            .unwrap_or_default()
+            .contains("sonnet"),
         "session only"
     );
     assert!(

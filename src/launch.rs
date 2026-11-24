@@ -70,6 +70,11 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
         guard::forced(),
         probe_only
     ));
+    if guard::force_ignored() {
+        note_line(
+            "SEATWISE_FORCE is ignored here: it counts only when you type it in a terminal, not inside a session",
+        );
+    }
     if !guard::forced() && !probe_only {
         let level = cfg.enforcement_of(seat);
         if level != Enforcement::Off {
@@ -88,8 +93,12 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
             guard::check_identity(seat, account.org_uuid.as_deref(), account.email.as_deref()),
         )?;
     }
+    // After the drift report, so a settings.json changed from outside is still reported.
     for note in sync::reconcile(seat, &cfg.track)? {
         note_line(&note);
+    }
+    if !probe_only && cfg.enforcement_of(seat) != Enforcement::Off {
+        ensure_hooks(cfg, seat)?;
     }
     for note in share::apply(cfg, seat)? {
         note_line(&note);
@@ -181,6 +190,99 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
     exec(cmd)
 }
 
+/// A guarded seat starts only with its hooks in place: missing or outdated ones (another binary, seat name or hook
+/// contract) are put back first. A strict seat whose hooks can't be put back doesn't start (fails closed).
+fn ensure_hooks(cfg: &Config, seat: &Seat) -> Result<()> {
+    let exe = std::env::current_exe()?;
+    let before = claude::hook_state(seat, &exe);
+    if before == claude::HookState::Current {
+        return Ok(());
+    }
+    let repaired = claude::install_hooks(cfg, seat, &exe)
+        .map(|_| claude::hook_state(seat, &exe) == claude::HookState::Current);
+    match repaired {
+        Ok(true) => {
+            note_line(&format!(
+                "guard hooks were {}; put back in {}",
+                if before == claude::HookState::Missing {
+                    "missing"
+                } else {
+                    "outdated"
+                },
+                seat.hooks_file().display()
+            ));
+            Ok(())
+        }
+        failed => {
+            let why = match failed {
+                Err(e) => format!("{e:#}"),
+                Ok(_) => "they still don't match after installing".into(),
+            };
+            let refusal = guard::Refusal {
+                message: format!(
+                    "seat '{}' is guarded, but its hooks are {} and couldn't be put back ({why}).",
+                    seat.name,
+                    if before == claude::HookState::Missing {
+                        "missing"
+                    } else {
+                        "outdated"
+                    },
+                ),
+                resolution: Some(format!(
+                    "Fix {}, then: seat install-hooks {}",
+                    seat.hooks_file().display(),
+                    seat.name
+                )),
+            };
+            apply(cfg.enforcement_of(seat), Err(refusal))
+        }
+    }
+}
+
+/// Whether a variable from the environment seatwise was started in may reach the agent. Logins and identities
+/// never do (they belong to whatever started us, not to the seat), nor the other agent's folder or a
+/// `SEATWISE_FORCE` (one start only). From inside an agent session, none of that session's own wiring
+/// (`CLAUDECODE`, `CLAUDE_CODE_*`, `ANTHROPIC_*`, `CODEX_*`, ...) does either: the desktop app, for one, points
+/// `ANTHROPIC_BASE_URL` at itself and exports the account it is signed into. Settings you export in your own shell
+/// (`CLAUDE_CODE_MAX_OUTPUT_TOKENS`, `ANTHROPIC_MODEL`, ...) pass when you start from that shell.
+pub fn env_passes(name: &str, agent: Agent, inside_session: bool) -> bool {
+    const FAMILY: [&str; 5] = ["CLAUDE", "ANTHROPIC", "OPENAI", "CODEX", "CLAUDECODE"];
+    const IDENTITY: [&str; 9] = [
+        "TOKEN",
+        "KEY",
+        "SECRET",
+        "PASSWORD",
+        "ACCOUNT",
+        "EMAIL",
+        "ORGANIZATION",
+        "ORG",
+        "UUID",
+    ];
+    let upper = name.to_ascii_uppercase();
+    let parts: Vec<&str> = upper.split('_').collect();
+    let family = FAMILY.contains(&parts[0]);
+    if upper == "SEATWISE_FORCE" || upper == "SEATWISE_PRESET" {
+        return false;
+    }
+    if upper == other_home_var(agent) {
+        return false;
+    }
+    if family && parts[1..].iter().any(|p| IDENTITY.contains(p)) {
+        return false;
+    }
+    if inside_session && family && upper != agent.home_var() {
+        return false;
+    }
+    true
+}
+
+fn other_home_var(agent: Agent) -> &'static str {
+    match agent {
+        Agent::Claude => Agent::Codex.home_var(),
+        Agent::Codex => Agent::Claude.home_var(),
+    }
+}
+
 /// A note for the user, kept in the run log too.
 fn note_line(note: &str) {
     errln!("seat: {note}");
@@ -190,6 +292,16 @@ fn note_line(note: &str) {
 /// The agent with a seat's environment: its config folder, its link handling, and no stray credentials.
 pub fn seat_command(seat: &Seat) -> Result<Command> {
     let mut cmd = Command::new(agent_binary(seat.agent)?);
+    let inside_session = ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CODEX_SANDBOX"]
+        .iter()
+        .any(|v| std::env::var_os(v).is_some());
+    for (name, _) in std::env::vars_os() {
+        if let Some(name) = name.to_str()
+            && !env_passes(name, seat.agent, inside_session)
+        {
+            cmd.env_remove(name);
+        }
+    }
     let var = seat.agent.home_var();
     if seat.is_default_location() {
         cmd.env_remove(var);
@@ -204,35 +316,6 @@ pub fn seat_command(seat: &Seat) -> Result<Command> {
         cmd.env("BROWSER", std::env::current_exe()?);
     }
     cmd.env("SEATWISE_SEAT", &seat.name);
-    // Started from inside another agent session (a desktop Code session, a CLI session running `seat term`): that
-    // session's own wiring must not reach the new one. The desktop app, for one, points ANTHROPIC_BASE_URL at itself.
-    // A base URL set in your own shell (outside any session) is left alone.
-    if std::env::var_os("CLAUDECODE").is_some()
-        || std::env::var_os("CLAUDE_CODE_ENTRYPOINT").is_some()
-    {
-        for inherited in [
-            "ANTHROPIC_BASE_URL",
-            "CLAUDECODE",
-            "CLAUDE_CODE_ENTRYPOINT",
-            "CLAUDE_CODE_SSE_PORT",
-        ] {
-            cmd.env_remove(inherited);
-        }
-    }
-    for leaked in [
-        "ANTHROPIC_API_KEY",
-        "ANTHROPIC_AUTH_TOKEN",
-        "CLAUDE_CODE_OAUTH_TOKEN",
-        "CLAUDE_CODE_ORGANIZATION_UUID",
-        "OPENAI_API_KEY",
-        // The other agent's folder variable, from whatever started us.
-        match seat.agent {
-            Agent::Claude => "CODEX_HOME",
-            Agent::Codex => "CLAUDE_CONFIG_DIR",
-        },
-    ] {
-        cmd.env_remove(leaked);
-    }
     Ok(cmd)
 }
 
@@ -403,4 +486,47 @@ fn exec(mut cmd: Command) -> Result<i32> {
     }
     let status = cmd.status().context("starting claude")?;
     Ok(status.code().unwrap_or(1))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn environment_reaching_the_agent() {
+        let pass = |n: &str, inside: bool| env_passes(n, Agent::Claude, inside);
+        for n in [
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_AUTH_TOKEN",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+            "CLAUDE_CODE_ACCOUNT_UUID",
+            "CLAUDE_CODE_USER_EMAIL",
+            "CLAUDE_CODE_ORGANIZATION_UUID",
+            "OPENAI_API_KEY",
+            "CODEX_HOME",
+            "SEATWISE_FORCE",
+        ] {
+            assert!(!pass(n, false), "{n} never passes");
+        }
+        for n in [
+            "PATH",
+            "HOME",
+            "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
+            "ANTHROPIC_MODEL",
+            "SEATWISE_CONFIG",
+        ] {
+            assert!(pass(n, false), "{n} from your own shell");
+        }
+        for n in [
+            "CLAUDECODE",
+            "CLAUDE_CODE_ENTRYPOINT",
+            "ANTHROPIC_BASE_URL",
+            "CLAUDE_CODE_SSE_PORT",
+        ] {
+            assert!(!pass(n, true), "{n} from inside a session");
+        }
+        assert!(pass("PATH", true) && pass("CLAUDE_CONFIG_DIR", true));
+        assert!(!env_passes("CLAUDE_CONFIG_DIR", Agent::Codex, false));
+        assert!(env_passes("CODEX_HOME", Agent::Codex, true));
+    }
 }

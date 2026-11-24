@@ -8,6 +8,20 @@ mistakes, such as a session on the wrong account or in the wrong folder, not a s
 - **Folders.** With enforcement on (`warn` or `strict`), the `PreToolUse` hook checks every file tool call (Read, Edit,
   Write, Glob, Grep, LS, NotebookEdit) exactly, including nested folders and symlinks, and scans shell commands for
   absolute and home-relative paths. `warn` asks you first; `strict` blocks.
+- **Fail closed.** A guarded seat starts only with its hooks in place. Missing or outdated hooks (another `seat`
+  binary, seat name or hook contract) are put back before the session starts; a `strict` seat whose hooks can't be
+  put back doesn't start.
+- **No way out from inside a session.** `SEATWISE_FORCE=1` gets one start past the start checks (to run `/login` on a
+  seat signed into the wrong org), and only when typed in a terminal: inside an agent session, in a hook, or without
+  a terminal it is ignored, and the hooks of a forced session still check it. The tool hook treats a shell command
+  that sets or clears `SEATWISE_FORCE`, `SEATWISE_SEAT`, `SEATWISE_CONFIG`, `SEATWISE_REVEAL`, `CLAUDE_CONFIG_DIR` or
+  `CODEX_HOME` (`VAR=1 claude`, `env -u`, `export`, `unset`, `bash -c '...'`, PowerShell's `$env:`) like a reach
+  into another seat's folder.
+- **Environment.** Logins and identities from whatever started seatwise (`ANTHROPIC_API_KEY`, `*_TOKEN`,
+  `CLAUDE_CODE_ACCOUNT_UUID`, `CLAUDE_CODE_USER_EMAIL`, `CLAUDE_CODE_ORGANIZATION_UUID`, ...) never reach the agent,
+  nor the other agent's config folder. Started from inside an agent session (a desktop Code session, for one), none
+  of that session's wiring (`CLAUDECODE`, `CLAUDE_CODE_*`, `ANTHROPIC_*`, `CODEX_*`) does either. Settings you export
+  in your own shell, such as `ANTHROPIC_MODEL`, pass when you start from that shell.
 - **Organizations.** A seat can be pinned to an org and email. A different login is reported at launch and, with
   enforcement on, in prompts.
 - **Links.** A seat's links, including `/login`, can go to a chosen browser or profile, or to the clipboard.

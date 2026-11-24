@@ -7,6 +7,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- Guarded seats fail closed: `seat run` puts missing or outdated hooks back before the session starts, and a `strict`
+  seat whose hooks can't be written doesn't start (exit 3).
+- `SEATWISE_FORCE=1` is honoured only when typed in a terminal, never inside an agent session or a hook, and it now
+  only gets a start past the start checks: the hooks of that session still check it. The tool hook treats a shell
+  command that sets or clears `SEATWISE_FORCE`, `SEATWISE_SEAT`, `SEATWISE_CONFIG`, `SEATWISE_REVEAL`,
+  `CLAUDE_CONFIG_DIR` or `CODEX_HOME` like a reach into another seat's folder (`warn` asks, `strict` blocks).
+- The environment handed to the agent drops every login and identity variable of the Claude, Anthropic, OpenAI and
+  Codex families (`*_TOKEN`, `*_KEY`, `CLAUDE_CODE_ACCOUNT_UUID`, `CLAUDE_CODE_USER_EMAIL`, ...), and, when started
+  from inside an agent session, all of that session's own variables.
+- Hook commands carry a hook contract version (`--contract 1`), and `seat doctor` names a seat whose hooks were
+  written for another one. Hooks from earlier versions show as outdated until the next start or `seat install-hooks`
+  (Codex asks once to approve the changed hooks).
+- `seat doctor` no longer suggests deleting a keychain login no seat uses: such a login may still be live (plain
+  `claude`, another config). It now says how to make it a seat, or, for a folder that is gone, where to remove it.
+
 ## [0.7.0] - 2026-11-24
 
 ### Added

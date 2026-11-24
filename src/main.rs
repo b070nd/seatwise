@@ -397,9 +397,18 @@ enum SentinelCmd {
 #[derive(Subcommand)]
 enum HookCmd {
     /// UserPromptSubmit: prompts in another seat's folder or on the wrong org
-    Prompt { seat: String },
+    Prompt {
+        seat: String,
+        /// The hook contract the hook was installed for (doctor compares it; the hook itself runs either way)
+        #[arg(long)]
+        contract: Option<u32>,
+    },
     /// PreToolUse: tool calls that touch another seat's folders
-    Tool { seat: String },
+    Tool {
+        seat: String,
+        #[arg(long)]
+        contract: Option<u32>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -572,6 +581,10 @@ fn real_main() -> ExitCode {
         println!("PRESET={}", var("SEATWISE_PRESET"));
         println!("BASE={}", var("ANTHROPIC_BASE_URL"));
         println!("DISKWARN={}", var("CLAUDE_CODE_WARN_DISK_FREE_GIB"));
+        let ids = ["CLAUDE_CODE_ACCOUNT_UUID", "CLAUDE_CODE_USER_EMAIL"]
+            .iter()
+            .any(|k| std::env::var_os(k).is_some());
+        println!("IDS={}", if ids { "set" } else { "none" });
         let key = std::env::var_os("ANTHROPIC_API_KEY").is_some();
         println!("KEY={}", if key { "set" } else { "none" });
         println!("ARGS={}", argv[1..].join(" "));
@@ -650,15 +663,12 @@ fn finish(result: Result<i32>) -> ExitCode {
 /// Fails closed: an unreadable config blocks too (the hook is only installed when enforcement is on).
 fn hook(h: HookCmd) -> ExitCode {
     let (seat_name, prompt) = match h {
-        HookCmd::Prompt { seat } => (seat, true),
-        HookCmd::Tool { seat } => (seat, false),
+        HookCmd::Prompt { seat, .. } => (seat, true),
+        HookCmd::Tool { seat, .. } => (seat, false),
     };
     let mut raw = String::new();
     let _ = std::io::stdin().read_to_string(&mut raw);
     let verdict = (|| -> Result<Verdict, String> {
-        if guard::forced() {
-            return Ok(Verdict::Allow);
-        }
         let cfg = Config::load().map_err(|e| format!("{e:#}"))?;
         let seat = cfg.seat(&seat_name).ok_or_else(|| {
             format!(
