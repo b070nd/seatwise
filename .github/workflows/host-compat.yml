@@ -1,0 +1,44 @@
+name: host-compat
+# seatwise against the latest Claude Code and Codex releases, weekly and when the host contract changes: the agents
+# start on a guarded seat, and the settings.json seatwise writes still validates against Claude Code's published
+# settings schema. A failure here means a host release changed something seatwise relies on (docs/security.md,
+# "Host compatibility").
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - src/claude.rs
+      - src/guard.rs
+      - src/launch.rs
+      - tests/host.rs
+      - .github/workflows/host-compat.yml
+permissions:
+  contents: read
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  latest:
+    name: host-compat (latest Claude Code and Codex)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: install the latest agent CLIs
+        run: |
+          npm install --global --no-fund --no-audit @anthropic-ai/claude-code@latest @openai/codex@latest
+          claude --version
+          codex --version
+      - name: start them on a guarded seat
+        run: |
+          SEATWISE_HOST_CLAUDE="$(command -v claude)" SEATWISE_HOST_CODEX="$(command -v codex)" \
+          SEATWISE_HOST_OUT="$RUNNER_TEMP/host" cargo test --locked --test host -- --ignored
+      - name: settings.json still matches Claude Code's settings schema
+        run: |
+          curl -fsSL https://www.schemastore.org/claude-code-settings.json -o "$RUNNER_TEMP/claude-code-settings.json"
+          pipx run 'check-jsonschema==0.33.0' --schemafile "$RUNNER_TEMP/claude-code-settings.json" \
+            "$RUNNER_TEMP/host/claude-settings.json"

@@ -66,6 +66,9 @@ tested with. The merge button would add the maintainer's own identity to every m
 
 ## Releasing
 
+0. Check by hand that a signed-in session still fires the hooks, on the latest Claude Code: on a `strict` seat, ask the
+   session to read a file in another seat's folder (blocked, and listed by `seat log`) and to run
+   `SEATWISE_FORCE=1 claude -p hi` (blocked). Look at the latest `host-compat` run too.
 1. Move the Unreleased entries in CHANGELOG.md under a new `## [x.y.z] - YYYY-MM-DD` heading and set `version` in
    `Cargo.toml` to the same number.
 2. Merge that, then tag the commit `vx.y.z` and push the tag. The release workflow checks that the tag, `Cargo.toml` and

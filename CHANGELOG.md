@@ -14,6 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   and the contract for probes, worktrees and subagents are in docs/json.md.
 - A config format version: `version = 1` in config.toml (unset means 1). A config from a newer seatwise is refused
   with the version it needs, instead of being guessed at; older formats will be migrated on load.
+- A weekly `host-compat` workflow runs seatwise against the latest Claude Code and Codex releases: both start on a
+  guarded seat, and the `settings.json` seatwise writes is validated against Claude Code's published settings schema.
+- The README says what 1.0 promises (config keys and format, commands, JSON, exit codes, the hook contract, the
+  environment variables) and what seatwise protects and doesn't (it isn't a sandbox, it trusts the agent binary, it
+  doesn't control the network).
 
 ### Changed
 - `seat init` proposes `enforcement = "warn"` and writes `version = 1`. A config without `enforcement` still means

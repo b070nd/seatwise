@@ -411,6 +411,46 @@ Org UUIDs, org names, emails, account ids and login tokens are read only from yo
 - The hooks guard Claude Code sessions. They don't stop you, or other programs, from opening the folders.
 - For seats whose `link` is not `"system"`, `BROWSER` is set to the `seat` binary; keep it installed at a path without spaces.
 
+## What 1.0 promises
+
+From 1.0 on, these change only with a new major version:
+
+- **Config.** The keys in [config.example.toml](config.example.toml) and what they mean. The file carries its format
+  (`version = 1`): seatwise migrates an older one when it reads it and refuses one from a newer seatwise.
+- **Commands.** The commands, flags and arguments in the table above. The human-readable output is not frozen: tools
+  should read `--json`.
+- **JSON.** The documents in [docs/json.md](docs/json.md) (`"schema": 1`): fields are only added.
+- **Exit codes.** 0 done, 1 failed, 2 usage error, 3 refused by the guard, 4 no such seat, preset or group.
+- **The hook contract** (contract 1): the `UserPromptSubmit` and `PreToolUse` hooks, the command
+  `seat hook prompt|tool <seat> --contract 1`, exit 2 to block, JSON on stdout to warn or ask. A new contract can come
+  with a minor release; `seat run` then puts the hooks back, and `seat doctor` names seats still on the old one.
+- **Environment.** The variables seatwise reads (`SEATWISE_CONFIG`, `SEATWISE_DATA`, `SEATWISE_FORCE`,
+  `SEATWISE_REVEAL`, `SEATWISE_CLAUDE`, `SEATWISE_CODEX`) and sets for a session (`SEATWISE_SEAT`, `SEATWISE_PRESET`).
+
+Not covered: the TUI, the sentinel's rules, the built-in presets and usage profiles, the settings catalog, and the
+desktop app support, which follows whatever the Claude desktop app does and is best effort.
+
+## Threat model
+
+seatwise keeps accounts, orgs and folders out of each other's work. It is built against mistakes and against an agent
+wandering off: a session on the wrong account, in the wrong folder, or reaching into another seat's files, and an
+agent trying to switch seats or lift the guard from inside its session.
+
+It does not protect against:
+
+- **A hostile program.** It is not a sandbox. Pair it with Claude Code's sandbox for a hard boundary.
+- **The agent binary.** seatwise trusts the `claude` and `codex` it finds on `PATH` (or in `SEATWISE_CLAUDE` /
+  `SEATWISE_CODEX`). It doesn't verify them.
+- **The network.** Sessions can reach any host the agent can.
+- **Anyone who can edit** seatwise's config, a seat's settings files, or the `seat` binary. They can change or remove
+  the hooks. A guarded seat puts them back on its next start, but a running session isn't watched.
+- **Shell commands that hide paths**, such as relative paths and paths built at runtime (see the limits above).
+- **Changes in the hosts.** The hook contract, `CLAUDE_CONFIG_DIR` handling and the desktop app's data folders belong
+  to Claude Code, Codex and the desktop app, and can change without notice. A weekly CI job (`host-compat`) runs
+  seatwise against their latest releases.
+
+The details are in [docs/security.md](docs/security.md).
+
 ## Platforms
 
 | | macOS | Linux | Windows |

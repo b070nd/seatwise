@@ -43,6 +43,19 @@ mistakes, such as a session on the wrong account or in the wrong folder, not a s
   off the hooks.
 - A compromised account or host.
 
+## Host compatibility
+
+The parts seatwise relies on belong to the hosts: the hook events and their input, `CLAUDE_CONFIG_DIR` and
+`CODEX_HOME`, the settings and hooks files, and the desktop app's data folders. They can change with any release.
+
+- Each hook command carries the hook contract it was written for (`--contract 1`). `seat doctor` names a seat whose
+  hooks were written for another contract, and `seat run` puts them back.
+- The `host-compat` workflow runs every week, and on changes to the hook code, against the latest Claude Code and
+  Codex releases. It starts both on a guarded seat (`tests/host.rs`), checks that the hooks are written and current,
+  and validates the `settings.json` seatwise writes against Claude Code's published settings schema.
+- That needs no account, so it can't show that a signed-in session fires the hooks. That is checked by hand before
+  each release (CONTRIBUTING.md).
+
 ## Defaults
 
 - Enforcement is off until you choose a level.
