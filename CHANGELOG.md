@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-11-25
+
 ### Added
 - `window = "<width>x<height>"` under `[seat.desktop]`: every `seat desktop` start opens the seat's window at that
   size, never maximized or full screen. The app saves a window as maximized whenever it fills a screen's usable area
@@ -268,7 +270,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.8.3...HEAD
+[0.8.3]: https://github.com/b070nd/seatwise/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/b070nd/seatwise/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/b070nd/seatwise/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/b070nd/seatwise/compare/v0.7.0...v0.8.0
