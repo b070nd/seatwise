@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- A desktop window opened from the Dock, Finder, Spotlight or a login item on a seat's data folder (as with
+  `user_data_dir = "default"`) shows the seat's login but reads Code sessions from `~/.claude`, so the seat's sessions
+  and environments look gone. `seat desktop <seat>` used to call that "already running" and stop. It now names the
+  seat, says nothing is lost and where the sessions are, and exits 1 with how to restart it; `seat doctor` and
+  `seat desktop` say the same.
+
 ## [0.8.1] - 2026-11-25
 
 ### Changed

@@ -1530,6 +1530,27 @@ fn desktop_starts_each_seat_once_with_its_own_data_folder_and_environment() {
         "{t}"
     );
 
+    // Opened from the Dock on that folder: the seat's desktop login, but Code sessions from ~/.claude, so the
+    // seat's sessions look gone. Say so and how to get them back, instead of "already running".
+    let out = desktop(&["desktop", "a"], &dock);
+    let t = text(&out);
+    assert_eq!(out.status.code(), Some(1), "{t}");
+    assert!(
+        t.contains("seat 'a''s data folder runs without the seat (pid 200")
+            && t.contains("Nothing is lost")
+            && t.contains("resolution: Quit that window (Cmd-Q), then: seat desktop a"),
+        "{t}"
+    );
+    assert!(!t.contains("ARGS="), "{t}");
+    let t = text(&desktop(&["doctor"], &dock));
+    assert!(
+        t.contains("seat 'a''s data folder runs without the seat")
+            && t.contains("run `seat desktop a`"),
+        "{t}"
+    );
+    let t = ok(&desktop(&["desktop"], &dock));
+    assert!(t.contains("no seat (on a's data)"), "{t}");
+
     // A shell command per seat.
     let sh = ok(&e
         .seat("", &["shell-init", "zsh"])

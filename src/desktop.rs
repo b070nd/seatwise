@@ -360,6 +360,36 @@ fn same_dir(a: &Path, b: &Path) -> bool {
     crate::folders::key_string(a) == crate::folders::key_string(b)
 }
 
+/// Started with launchd's environment only: from the Dock, Finder, Spotlight, a login item, or a relaunch by the app.
+fn plain(i: &Instance) -> bool {
+    i.seat.is_none() && i.config_dir.is_none()
+}
+
+/// The seat whose own data folder a plain instance has open, when that seat's sessions live outside `~/.claude`.
+/// That instance shows the seat's desktop login but reads Code sessions from `~/.claude`, so the seat's sessions
+/// look gone.
+fn hijacked_seat<'a>(cfg: &'a Config, i: &Instance) -> Option<&'a Seat> {
+    if !plain(i) {
+        return None;
+    }
+    cfg.seats.iter().find(|s| {
+        s.agent == crate::config::Agent::Claude
+            && !s.is_default_location()
+            && same_dir(&data_dir_or_default(s), &i.data_dir_or_default())
+    })
+}
+
+fn hijacked_message(seat: &Seat, i: &Instance) -> String {
+    format!(
+        "the desktop app on seat '{}''s data folder runs without the seat ({}): it was opened from the Dock, Finder, \
+         Spotlight or a login item, so its Code tab reads ~/.claude and the seat's sessions and environments don't \
+         show. Nothing is lost; they are in {}",
+        seat.name,
+        i.label(),
+        crate::paths::contract(&seat.config_dir())
+    )
+}
+
 /// The Claude Code config folder an instance's sessions use (`~/.claude` without `CLAUDE_CONFIG_DIR`).
 fn instance_config_dir(i: &Instance) -> PathBuf {
     i.config_dir
@@ -473,6 +503,15 @@ pub fn open(cfg: &Config, seat: &Seat, exe: &Path) -> Result<Vec<String>> {
         .iter()
         .find(|i| same_dir(&i.data_dir_or_default(), &data))
     {
+        if let Some(s) = hijacked_seat(cfg, i).filter(|s| s.name == seat.name) {
+            return Err(crate::error::UserError::new(hijacked_message(s, i))
+                .resolution(format!(
+                    "Quit that window (Cmd-Q), then: seat desktop {} (from now on, start it this way or with \
+                     claude-desktop-{}, not from the Dock)",
+                    seat.name, seat.name
+                ))
+                .into());
+        }
         let mut out = vec![format!(
             "seat '{}' desktop is already running ({}); not starting a second instance on the same data folder",
             seat.name,
@@ -587,6 +626,14 @@ pub fn findings(cfg: &Config, exe: &Path) -> Findings {
             continue;
         }
         match i.seat.as_deref() {
+            None if hijacked_seat(cfg, i).is_some() => {
+                let s = hijacked_seat(cfg, i).unwrap();
+                out.push(format!(
+                    "{}. Quit it (Cmd-Q) and run `seat desktop {}`",
+                    hijacked_message(s, i),
+                    s.name
+                ))
+            }
             None if i.config_dir.is_none() => out.push(format!(
                 "a Claude desktop instance runs without a seat ({}): it was started from the Dock or Finder, so its \
                  Code sessions use ~/.claude, without hooks or a pinned org. Quit it and start it with `seat desktop <seat>`",
@@ -628,12 +675,20 @@ pub fn status(cfg: &Config, exe: &Path) -> Vec<String> {
                 (Some(s), _) => format!("seat {s}"),
                 (None, Some(_)) if mine => format!("seat {}", adopt.as_deref().unwrap_or_default()),
                 (None, Some(_)) => "no seat (CLAUDE_CONFIG_DIR set by hand)".into(),
-                (None, None) => "no seat".into(),
+                (None, None) => match hijacked_seat(cfg, i) {
+                    Some(s) => format!("no seat (on {}'s data)", s.name),
+                    None => "no seat".into(),
+                },
             };
             let note = if mine {
                 format!(
                     "  [{}]",
                     default_folder_hint(adopt.as_deref().unwrap_or_default())
+                )
+            } else if let Some(s) = hijacked_seat(cfg, i) {
+                format!(
+                    "  [opened from the Dock: {}'s sessions don't show; quit it, then `seat desktop {}`]",
+                    s.name, s.name
                 )
             } else {
                 stale(cfg, i, exe)
