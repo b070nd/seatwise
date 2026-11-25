@@ -68,6 +68,10 @@ pub struct Desktop {
     /// `~/Library/Application Support/Claude-<seat>`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_data_dir: Option<String>,
+    /// The window size every start opens with, `"<width>x<height>"` in points (e.g. `"1800x1900"`): never maximized
+    /// or full screen. Unset: whatever the app saved last.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window: Option<String>,
 }
 
 /// Which coding agent a seat runs.
@@ -610,6 +614,15 @@ impl Config {
             if seat.desktop.is_some() && seat.agent != Agent::Claude {
                 bail!(
                     "seat '{}': [seat.desktop] is for Claude Code seats",
+                    seat.name
+                );
+            }
+            if let Some(w) = seat.desktop.as_ref().and_then(|d| d.window.as_deref())
+                && crate::desktop::parse_window(w).is_none()
+            {
+                bail!(
+                    "seat '{}': [seat.desktop] window = \"{w}\" is not a size; write it as \"<width>x<height>\" in points, \
+                     each at least 200, e.g. \"1800x1900\"",
                     seat.name
                 );
             }

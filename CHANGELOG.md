@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- `window = "<width>x<height>"` under `[seat.desktop]`: every `seat desktop` start opens the seat's window at that
+  size, never maximized or full screen. The app saves a window as maximized whenever it fills a screen's usable area
+  and maximizes it on every start after that, so a resized window could keep coming back full screen.
 - `seat desktop <seat> --own-folder` moves a seat's desktop data out of the app's usual folder into `Claude-<seat>`,
   login and sessions included (the app must be quit). While a seat uses the usual folder, every Claude opened from the
   Dock, Finder, Spotlight or a login item lands on its data without the seat, and its sessions look gone; `seat doctor`

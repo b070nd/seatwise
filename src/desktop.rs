@@ -47,6 +47,53 @@ fn data_dir_or_default(seat: &Seat) -> PathBuf {
     data_dir(seat).unwrap_or_else(|| app_support().join("Claude"))
 }
 
+/// `"<width>x<height>"` in points, each at least 200.
+pub fn parse_window(s: &str) -> Option<(i64, i64)> {
+    let (w, h) = s.trim().split_once(['x', 'X'])?;
+    let (w, h) = (w.trim().parse::<i64>().ok()?, h.trim().parse::<i64>().ok()?);
+    (w >= 200 && h >= 200 && w <= 20_000 && h <= 20_000).then_some((w, h))
+}
+
+/// Give the app's saved window state (`window-state.json` in its data folder) the seat's size, not maximized and not
+/// full screen, before it starts. The app maximizes a window it saved as maximized, and it saves one as maximized
+/// whenever it fills a screen's usable area (all of a screen without a menu bar or Dock), so a resized window can
+/// come back maximized. The position is kept when the window still fits on the screen it was saved on, else the
+/// app places it. The app only reads this file at start; a running instance would write over it.
+fn set_window(data: &Path, (w, h): (i64, i64)) -> Result<()> {
+    let path = data.join("window-state.json");
+    let mut state = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .filter(serde_json::Value::is_object)
+        .unwrap_or_else(|| serde_json::json!({}));
+    let o = state.as_object_mut().expect("an object");
+    let int =
+        |o: &serde_json::Map<String, serde_json::Value>, k: &str| o.get(k).and_then(|v| v.as_i64());
+    let fits = match (int(o, "x"), int(o, "y"), o.get("displayBounds")) {
+        (Some(x), Some(y), Some(serde_json::Value::Object(d))) => {
+            match (int(d, "x"), int(d, "y"), int(d, "width"), int(d, "height")) {
+                (Some(dx), Some(dy), Some(dw), Some(dh)) => {
+                    x >= dx && y >= dy && x + w <= dx + dw && y + h <= dy + dh
+                }
+                _ => false,
+            }
+        }
+        _ => false,
+    };
+    if !fits {
+        o.remove("x");
+        o.remove("y");
+    }
+    o.insert("width".into(), w.into());
+    o.insert("height".into(), h.into());
+    o.insert("isMaximized".into(), false.into());
+    o.insert("isFullScreen".into(), false.into());
+    std::fs::create_dir_all(data)?;
+    let tmp = data.join("window-state.json.seatwise");
+    std::fs::write(&tmp, serde_json::to_string_pretty(&state)?)?;
+    std::fs::rename(&tmp, &path).with_context(|| format!("writing {}", path.display()))
+}
+
 /// The environment the app gets for a seat. The app inherits the login session's environment from launchd, never
 /// the shell's, so this is all it gets from us.
 pub fn env_for(seat: &Seat, exe: &Path) -> Vec<(&'static str, String)> {
@@ -534,6 +581,18 @@ pub fn open(cfg: &Config, seat: &Seat, exe: &Path) -> Result<Vec<String>> {
              the other Claude windows until this one is signed in.",
             seat.name,
             running.len()
+        ));
+    }
+    if let Some(size) = seat
+        .desktop
+        .as_ref()
+        .and_then(|d| d.window.as_deref())
+        .and_then(parse_window)
+    {
+        set_window(&data, size)?;
+        out.push(format!(
+            "window {}x{} (not maximized), from [seat.desktop] window",
+            size.0, size.1
         ));
     }
     let mut cmd =
