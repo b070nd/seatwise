@@ -173,6 +173,22 @@ impl ConfigFile {
         Ok(())
     }
 
+    /// Remove `key` from a seat's `[seat.desktop]`, and the table itself once it is empty. Whether it was there.
+    pub fn unset_seat_desktop(&mut self, seat: &str, key: &str) -> Result<bool> {
+        let t = self.seat_table_checked(seat)?;
+        let (removed, empty) = match t.get_mut("desktop") {
+            Some(Item::Table(d)) => (d.remove(key).is_some(), d.is_empty()),
+            Some(Item::Value(toml_edit::Value::InlineTable(d))) => {
+                (d.remove(key).is_some(), d.is_empty())
+            }
+            _ => (false, false),
+        };
+        if empty {
+            t.remove("desktop");
+        }
+        Ok(removed)
+    }
+
     /// Record the account (and plan) a seat must be signed into. `None` fields are left as they are.
     pub fn pin(
         &mut self,

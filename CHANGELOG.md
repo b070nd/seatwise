@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- `seat desktop <seat> --own-folder` moves a seat's desktop data out of the app's usual folder into `Claude-<seat>`,
+  login and sessions included (the app must be quit). While a seat uses the usual folder, every Claude opened from the
+  Dock, Finder, Spotlight or a login item lands on its data without the seat, and its sessions look gone; `seat doctor`
+  now warns about such a seat, and the Dock-window message points here.
+
 ## [0.8.2] - 2026-11-25
 
 ### Fixed

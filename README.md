@@ -494,6 +494,7 @@ More in [Presets and folder groups](#presets-and-folder-groups).
 | Command | What it does |
 |---|---|
 | `seat desktop [seat]` | Starts the Claude desktop app on a seat (macOS), with its own data folder, unless it already runs. Without a seat, lists the running instances |
+| `seat desktop <seat> --own-folder` | Moves a seat's desktop data out of the app's usual folder into `Claude-<seat>` (the app must be quit), so a Claude opened from the Dock can't land on it |
 | `seat doctor --desktop` | The desktop instances running, and recent warnings and errors from their shared log, each with the instances that were running then |
 | `seat term [--seat s] [--dir d] [--with p] [--home] [--print] [-- args]` | Opens a terminal window running the seat's CLI in a project. Inside a session it takes that session's seat and project |
 | `seat hybrid [--seat s] [--dir d] [--link] [--preset p] [--with p] [--check] [--no-open] [--print] [--json]` | Sets up the CLI side of a project next to the desktop app (folder, skills, preset), then opens a terminal on the same seat |
@@ -804,14 +805,28 @@ app runs there for one of your seats (started with that seat's `CLAUDE_CONFIG_DI
 suggests it (`seat doctor --fix` adds it), and `seat desktop <seat>` won't start a second, signed-out instance next to
 it. Only one seat can have the usual folder.
 
+That keeps the login, but the usual folder is also where every Claude opened from the Dock, Finder, Spotlight or a
+login item lands, without the seat. Such a window shows the seat's desktop login but reads Code sessions from
+`~/.claude`, so the seat's sessions and environments look gone (they aren't: they are in the seat's config folder).
+Move the seat out once, with the app quit:
+
+```sh
+seat desktop work --own-folder   # moves the usual folder to Claude-work, login and sessions included
+seat desktop work
+```
+
+After that, a Dock launch opens a new, signed-out window that can't hide anything. `seat doctor` reminds you while a
+seat still uses the usual folder, and `seat desktop <seat>` refuses to call a Dock-opened window on its folder
+"already running".
+
 - **One instance per seat.** If the seat's instance already runs, `seat desktop` says so instead of starting a second
   one on the same data folder.
 - **Signing in while other instances run.** A Google sign-in answers through a `claude://` link, which macOS hands to
   the *oldest* running Claude; that one ignores it, and the new seat keeps waiting on its login page. Sign in with
   your email (you type the code into the app), or quit the other Claude windows until the new one is signed in.
   `seat desktop` reminds you when a seat starts for the first time while others run.
-- **Starting from the Dock or Finder** gives no seat: the app uses `~/.claude` (signed out, no hooks) and its usual
-  data folder. `seat doctor` reports such instances, and `~/.claude` coming back.
+- **Starting from the Dock or Finder** gives no seat: the app uses `~/.claude` (no hooks) and its usual data folder.
+  `seat doctor` reports such instances, and `~/.claude` coming back; on a seat's folder, see `--own-folder` above.
 - **An instance keeps the environment it started with.** After changing a seat's link handling or config folder,
   `seat doctor` says which desktop to restart.
 - Deleting a seat's data folder signs that desktop seat out.

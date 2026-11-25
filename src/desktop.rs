@@ -506,8 +506,8 @@ pub fn open(cfg: &Config, seat: &Seat, exe: &Path) -> Result<Vec<String>> {
         if let Some(s) = hijacked_seat(cfg, i).filter(|s| s.name == seat.name) {
             return Err(crate::error::UserError::new(hijacked_message(s, i))
                 .resolution(format!(
-                    "Quit that window (Cmd-Q), then: seat desktop {} (from now on, start it this way or with \
-                     claude-desktop-{}, not from the Dock)",
+                    "Quit that window (Cmd-Q), then: seat desktop {} --own-folder, so a Dock launch can't do \
+                     this again; then: seat desktop {}",
                     seat.name, seat.name
                 ))
                 .into());
@@ -565,6 +565,115 @@ pub fn open(cfg: &Config, seat: &Seat, exe: &Path) -> Result<Vec<String>> {
         crate::paths::contract(&data)
     ));
     Ok(out)
+}
+
+/// Move a seat's desktop data out of the app's default folder into one of its own (`Claude-<seat>`), and drop
+/// `user_data_dir = "default"` from its config. While a seat lives in the default folder, every Claude opened from
+/// the Dock, Finder, Spotlight or a login item lands on its data without the seat, and its sessions look gone.
+/// Afterwards such a window gets a new, signed-out folder instead. The app must not be running on that folder.
+pub fn own_folder(cfg: &Config, seat: &Seat) -> Result<Vec<String>> {
+    if seat.agent != crate::config::Agent::Claude {
+        bail!(
+            "seat '{}' runs Codex, which has no desktop app here",
+            seat.name
+        );
+    }
+    if data_dir(seat).is_some() {
+        return Ok(vec![format!(
+            "seat '{}' desktop already has a data folder of its own ({})",
+            seat.name,
+            crate::paths::contract(&data_dir_or_default(seat))
+        )]);
+    }
+    let from = data_dir_or_default(seat);
+    if let Some(i) = running(cfg)
+        .iter()
+        .find(|i| same_dir(&i.data_dir_or_default(), &from))
+    {
+        return Err(crate::error::UserError::new(format!(
+            "a Claude desktop instance runs on that folder ({})",
+            i.label()
+        ))
+        .resolution(format!(
+            "Quit it (Cmd-Q), then: seat desktop {} --own-folder",
+            seat.name
+        ))
+        .into());
+    }
+    let to = app_support().join(format!("Claude-{}", seat.name));
+    let occupied = std::fs::read_dir(&to).is_ok_and(|mut d| d.next().is_some());
+    if occupied {
+        bail!(
+            "{} already exists and isn't empty; move it away first",
+            crate::paths::contract(&to)
+        );
+    }
+    let mut out = Vec::new();
+    if from.is_dir() {
+        let _ = std::fs::remove_dir(&to);
+        std::fs::rename(&from, &to)
+            .with_context(|| format!("moving {} to {}", from.display(), to.display()))?;
+        out.push(format!(
+            "moved {} to {} (its desktop login, sessions and settings)",
+            crate::paths::contract(&from),
+            crate::paths::contract(&to)
+        ));
+        let n = repoint(&to, &from, &to);
+        if n > 0 {
+            out.push(format!(
+                "pointed {n} file(s) that named the old folder (scratch workspaces, plugins) at the new one"
+            ));
+        }
+    }
+    let mut file = crate::edit::ConfigFile::open()?;
+    file.unset_seat_desktop(&seat.name, "user_data_dir")?;
+    if let Err(e) = file.save() {
+        if out.is_empty() {
+            return Err(e);
+        }
+        std::fs::rename(&to, &from).ok();
+        return Err(e.context("the config couldn't be updated, so the folder was moved back"));
+    }
+    out.push(format!(
+        "seat '{}': user_data_dir = \"default\" removed; its desktop now uses {}",
+        seat.name,
+        crate::paths::contract(&to)
+    ));
+    out.push(format!(
+        "a Claude opened from the Dock now gets a new, signed-out folder and can't hide this seat's sessions. \
+         Start this seat with `seat desktop {}` (or claude-desktop-{})",
+        seat.name, seat.name
+    ));
+    Ok(out)
+}
+
+/// Rewrite `old/` to `new/` in the app's JSON files under `dir` (session records name their scratch workspaces and
+/// plugins by absolute path). Other files are left alone. Returns how many files changed.
+fn repoint(dir: &Path, old: &Path, new: &Path) -> usize {
+    let (old, new) = (format!("{}/", old.display()), format!("{}/", new.display()));
+    let mut changed = 0;
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&d) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let Ok(kind) = e.file_type() else { continue };
+            let p = e.path();
+            if kind.is_dir() {
+                stack.push(p);
+            } else if kind.is_file()
+                && p.extension().is_some_and(|x| x == "json")
+                && e.metadata().is_ok_and(|m| m.len() < 16 << 20)
+                && let Ok(text) = std::fs::read_to_string(&p)
+                && text.contains(&old)
+                && std::fs::write(&p, text.replace(&old, &new)).is_ok()
+            {
+                changed += 1;
+            }
+        }
+    }
+    changed
 }
 
 /// How a running instance's setup differs from what `seat desktop` would start now, if it does.
@@ -629,8 +738,10 @@ pub fn findings(cfg: &Config, exe: &Path) -> Findings {
             None if hijacked_seat(cfg, i).is_some() => {
                 let s = hijacked_seat(cfg, i).unwrap();
                 out.push(format!(
-                    "{}. Quit it (Cmd-Q) and run `seat desktop {}`",
+                    "{}. Quit it (Cmd-Q), run `seat desktop {} --own-folder` so a Dock launch can't do this \
+                     again, then `seat desktop {}`",
                     hijacked_message(s, i),
+                    s.name,
                     s.name
                 ))
             }
@@ -653,6 +764,19 @@ pub fn findings(cfg: &Config, exe: &Path) -> Findings {
                 }
             }
         }
+    }
+    for s in cfg.seats.iter().filter(|s| {
+        s.agent == crate::config::Agent::Claude
+            && cfg.is_enabled(s)
+            && !s.is_default_location()
+            && data_dir(s).is_none()
+    }) {
+        out.push(format!(
+            "seat '{}' desktop uses the app's default data folder: a Claude opened from the Dock, Finder or a login \
+             item lands on its data without the seat, and its sessions look gone. With the app quit, \
+             `seat desktop {} --own-folder` moves it to a folder of its own",
+            s.name, s.name
+        ));
     }
     Findings {
         warnings: out,

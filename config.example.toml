@@ -127,6 +127,9 @@ link = ["firefox", "-P", "work", "{url}"]
 # [seat.desktop]
 # user_data_dir = "default"          # the app's usual data folder, where an existing desktop login is (one seat
 #                                    # only; `seat doctor --fix` sets it); default: ~/Library/Application Support/Claude-<seat>
+#                                    # A Claude opened from the Dock also lands there, without the seat;
+#                                    # `seat desktop <seat> --own-folder` moves the seat out of it
+
 # app = "/Applications/Claude.app"   # the default
 
 [[seat]]

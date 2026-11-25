@@ -1545,11 +1545,73 @@ fn desktop_starts_each_seat_once_with_its_own_data_folder_and_environment() {
     let t = text(&desktop(&["doctor"], &dock));
     assert!(
         t.contains("seat 'a''s data folder runs without the seat")
-            && t.contains("run `seat desktop a`"),
+            && t.contains("run `seat desktop a --own-folder`"),
         "{t}"
     );
     let t = ok(&desktop(&["desktop"], &dock));
     assert!(t.contains("no seat (on a's data)"), "{t}");
+
+    // The lasting fix: move the seat out of the default folder, so a Dock launch can't land on its data.
+    let t = text(&desktop(&["doctor"], ""));
+    assert!(
+        t.contains("seat 'a' desktop uses the app's default data folder"),
+        "{t}"
+    );
+    fs::create_dir_all(support.join("Claude/claude-code-sessions")).unwrap();
+    fs::write(support.join("Claude/marker"), "login").unwrap();
+    let session = |root: &str| {
+        format!(
+            "{{\"cwd\":\"{}/scratch-workspaces/x\",\"other\":\"{}/Claude-b/y\"}}",
+            support.join(root).display(),
+            support.display()
+        )
+    };
+    fs::write(
+        support.join("Claude/claude-code-sessions/s.json"),
+        session("Claude"),
+    )
+    .unwrap();
+    let out = desktop(&["desktop", "a", "--own-folder"], &dock);
+    let t = text(&out);
+    assert_eq!(out.status.code(), Some(1), "{t}");
+    assert!(
+        t.contains("resolution: Quit it (Cmd-Q), then: seat desktop a --own-folder"),
+        "{t}"
+    );
+    assert!(
+        support.join("Claude/marker").exists(),
+        "nothing moved while it runs"
+    );
+    let t = ok(&desktop(&["desktop", "a", "--own-folder"], ""));
+    assert!(
+        t.contains("moved") && t.contains("user_data_dir = \"default\" removed"),
+        "{t}"
+    );
+    assert_eq!(read(&support.join("Claude-a/marker")), "login");
+    assert_eq!(
+        read(&support.join("Claude-a/claude-code-sessions/s.json")),
+        session("Claude-a"),
+        "paths into the old folder follow it; other folders' paths stay"
+    );
+    assert!(t.contains("pointed 1 file(s)"), "{t}");
+    assert!(!support.join("Claude").exists());
+    assert!(
+        !read(&e.config).contains("user_data_dir"),
+        "{}",
+        read(&e.config)
+    );
+    let t = ok(&desktop(&["desktop", "a"], ""));
+    assert!(
+        t.contains(&format!(
+            "--user-data-dir={}",
+            support.join("Claude-a").display()
+        )),
+        "{t}"
+    );
+    let t = ok(&desktop(&["desktop", "a", "--own-folder"], ""));
+    assert!(t.contains("already has a data folder of its own"), "{t}");
+    let t = text(&desktop(&["doctor"], ""));
+    assert!(!t.contains("uses the app's default data folder"), "{t}");
 
     // A shell command per seat.
     let sh = ok(&e
@@ -1620,7 +1682,9 @@ fn a_seat_whose_desktop_runs_in_the_default_folder_is_told_to_keep_it() {
         "the table sits under seat a: {cfg}"
     );
     let t = text(&run(&["doctor"]));
-    assert!(!t.contains("default data folder"), "fixed: {t}");
+    assert!(!t.contains("where its desktop login is"), "fixed: {t}");
+    // Kept in the default folder, a Dock launch can still land on it: doctor points at the lasting fix.
+    assert!(t.contains("`seat desktop a --own-folder`"), "{t}");
     let t = ok(&run(&["desktop", "a"]));
     assert!(t.contains("already running (pid 300"), "{t}");
 }

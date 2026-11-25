@@ -90,6 +90,10 @@ enum Cmd {
     Desktop {
         /// The seat (or one of its aliases)
         seat: Option<String>,
+        /// Move the seat's desktop data out of the app's default folder into one of its own (the app must be
+        /// quit), so a Claude opened from the Dock can't land on it
+        #[arg(long, requires = "seat")]
+        own_folder: bool,
     },
     /// Set up the command line for this project next to the desktop app (seat, folder, skills, preset), then
     /// open a terminal on the same seat and project
@@ -934,10 +938,14 @@ fn run(cmd: Cmd) -> Result<i32> {
             &launch::RunOptions { with, home },
             &args,
         ),
-        Cmd::Desktop { seat } => {
+        Cmd::Desktop { seat, own_folder } => {
             let cfg = Config::load()?;
             let lines = match seat {
                 None => seatwise::desktop::status(&cfg, &exe),
+                Some(s) if own_folder => {
+                    let seat = cfg.seat_named(&s)?;
+                    seatwise::desktop::own_folder(&cfg, seat)?
+                }
                 Some(s) => {
                     let seat = cfg.seat_named(&s)?;
                     seatwise::desktop::open(&cfg, seat, &exe)?
