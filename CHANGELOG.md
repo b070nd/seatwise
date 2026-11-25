@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-11-25
+
 ### Removed
 - `window` under `[seat.desktop]`, added in 0.8.3. It reset the window to one size on every start, so a size you
   resized to later was lost. The desktop app keeps a resized window's size itself; a window it restores maximized was
@@ -275,7 +277,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.8.3...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.8.4...HEAD
+[0.8.4]: https://github.com/b070nd/seatwise/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/b070nd/seatwise/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/b070nd/seatwise/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/b070nd/seatwise/compare/v0.8.0...v0.8.1
