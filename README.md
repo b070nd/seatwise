@@ -827,18 +827,6 @@ seat still uses the usual folder, and `seat desktop <seat>` refuses to call a Do
   `seat desktop` reminds you when a seat starts for the first time while others run.
 - **Starting from the Dock or Finder** gives no seat: the app uses `~/.claude` (no hooks) and its usual data folder.
   `seat doctor` reports such instances, and `~/.claude` coming back; on a seat's folder, see `--own-folder` above.
-- **A window that keeps coming back maximized.** The app saves a window as maximized whenever it fills a screen's
-  usable area (on a screen without a menu bar or Dock, that's the whole screen), and then maximizes it on every start.
-  It also moves a window to the main screen when it starts before it sees the others. Give the seat a size, and every
-  `seat desktop` start opens with it, never maximized or full screen:
-
-  ```toml
-  [seat.desktop]
-  window = "1800x1900"    # width x height in points
-  ```
-
-  The saved position is kept while the window still fits on that screen. A window you resize keeps that size until
-  the next start; change `window` to keep a new one.
 - **An instance keeps the environment it started with.** After changing a seat's link handling or config folder,
   `seat doctor` says which desktop to restart.
 - Deleting a seat's data folder signs that desktop seat out.

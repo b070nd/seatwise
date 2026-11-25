@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Removed
+- `window` under `[seat.desktop]`, added in 0.8.3. It reset the window to one size on every start, so a size you
+  resized to later was lost. The desktop app keeps a resized window's size itself; a window it restores maximized was
+  saved while it covered a whole screen. A config that still sets `window` is refused; remove the line.
+
 ## [0.8.3] - 2026-11-25
 
 ### Added

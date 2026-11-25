@@ -131,7 +131,6 @@ link = ["firefox", "-P", "work", "{url}"]
 #                                    # `seat desktop <seat> --own-folder` moves the seat out of it
 
 # app = "/Applications/Claude.app"   # the default
-# window = "1800x1900"               # every start opens this size (points), never maximized or full screen
 
 [[seat]]
 name = "personal"
