@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-26
+
 ### Changed
 - The `terminal` and `hybrid` skills open the CLI in the desktop app's own Terminal panel, beside the conversation,
   when the session has a tool for it, instead of a separate terminal window. Elsewhere they open a window as before.
@@ -296,7 +298,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/b070nd/seatwise/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/b070nd/seatwise/compare/v0.8.4...v0.9.0
 [0.8.4]: https://github.com/b070nd/seatwise/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/b070nd/seatwise/compare/v0.8.2...v0.8.3
