@@ -499,7 +499,7 @@ More in [Presets and folder groups](#presets-and-folder-groups).
 | `seat desktop <seat> --quit` / `--restart` | Quits the seat's desktop window as Cmd-Q does (it saves its state and stops its Code sessions) and waits until it has gone; `--restart` then starts it on the seat. For a window opened from the Dock on the seat's folder, or one with an older setup |
 | `seat desktop <seat> --own-folder` | Moves a seat's desktop data out of the app's usual folder into `Claude-<seat>` (the app must be quit), so a Claude opened from the Dock can't land on it |
 | `seat doctor --desktop` | The desktop instances running, and recent warnings and errors from their shared log, each with the instances that were running then |
-| `seat term [--seat s] [--dir d] [--with p] [--home] [--print] [-- args]` | Opens a terminal window running the seat's CLI in a project. Inside a session it takes that session's seat and project |
+| `seat term [--seat s] [--dir d] [--with p] [--home] [--print] [-- args]` | Opens a terminal window running the seat's CLI in a project. Inside a session it takes that session's seat and project. In the desktop app, the `terminal` and `hybrid` skills open it in the app's own Terminal panel instead (with `--print`) |
 | `seat hybrid [--seat s] [--dir d] [--link] [--preset p] [--with p] [--check] [--no-open] [--print] [--json]` | Sets up the CLI side of a project next to the desktop app (folder, skills, preset), then opens a terminal on the same seat |
 | `seat url [--copy] <url>` | Opens a link the way the current seat's `link` setting says. Inside sessions, `BROWSER` points here |
 

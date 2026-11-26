@@ -30,6 +30,11 @@ setup and opens the terminal. It refuses to cross into another seat's folders.
    "{{seat}}" hybrid [--link] [--preset <name>] [--with <profile>]
    ```
 
+   When you have a tool that starts a command in a terminal tab inside the app this session runs in (the Claude
+   desktop app's Terminal panel, beside the conversation), add `--print`: the setup is the same, but instead of a new
+   terminal window the report's `terminal` step holds the command. Run that line with the tool, in a new tab in the
+   project folder (a full absolute path), unchanged.
+
 4. Pass on the report. The terminal session starts fresh and doesn't see this conversation: offer a short summary
    of the current task that the user can paste there.
 

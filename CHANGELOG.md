@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- The `terminal` and `hybrid` skills open the CLI in the desktop app's own Terminal panel, beside the conversation,
+  when the session has a tool for it, instead of a separate terminal window. Elsewhere they open a window as before.
+
 ## [0.9.0] - 2026-11-26
 
 ### Added
