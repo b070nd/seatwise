@@ -31,7 +31,8 @@ setup and opens the terminal. It refuses to cross into another seat's folders.
    ```
 
    When you have a tool that starts a command in a terminal tab inside the app this session runs in (the Claude
-   desktop app's Terminal panel, beside the conversation), add `--print`: the setup is the same, but instead of a new
+   desktop app's Terminal panel, beside the conversation: `run_in_terminal`, `mcp__terminal__run_in_terminal`; it may
+   only be listed as a deferred tool, so load it first with your tool-search tool), add `--print`: the setup is the same, but instead of a new
    terminal window the report's `terminal` step holds the command. Run that line with the tool, in a new tab in the
    project folder (a full absolute path), unchanged.
 

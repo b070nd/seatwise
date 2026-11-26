@@ -11,9 +11,10 @@ terminal window.
 
 1. Work out the project folder: the folder this session works in (`$CLAUDE_PROJECT_DIR`, else the current folder).
 2. Where it opens:
-   - **In the app's terminal panel**, when you have a tool that starts a command in a terminal tab inside the app
-     this session runs in (the Claude desktop app's Terminal panel, beside the conversation). Get the command, from
-     that folder:
+   - **In the app's terminal panel** (the default in the Claude desktop app), when you have a tool that starts a
+     command in a terminal tab inside the app this session runs in, beside the conversation: in the desktop app it is
+     `run_in_terminal` (`mcp__terminal__run_in_terminal`). It may only be listed as a deferred tool: load it first
+     (with your tool-search tool), and use it. Get the command, from that folder:
 
      ```sh
      "{{seat}}" term --print
@@ -21,7 +22,8 @@ terminal window.
 
      and run the line it prints with that tool, in a new tab in the project folder (a full absolute path). Don't
      change the line.
-   - **Otherwise**, a new terminal window. Run, from that folder:
+   - **Otherwise** (no such tool, even deferred: a plain terminal, an IDE), a new terminal window. Run, from that
+     folder:
 
      ```sh
      "{{seat}}" term
