@@ -65,7 +65,9 @@ seatwise handles these. If you only need to switch accounts, a plain alias
   reports.
 - **`seat tui`:** one screen with a card per seat (account, plan, identity, isolation, desktop app, usage limits,
   its projects) and per project (seat, preset, sessions, last used, what a session there runs with). It also has an
-  editor for preset settings that only takes valid choices, and switches for agents, groups and the sentinel.
+  editor for preset settings that only takes valid choices, and switches for agents, groups and the sentinel. Its
+  Running tab shows what runs on each seat (desktop window, CLI sessions) and starts, quits and restarts the desktop
+  app on a seat, or opens a terminal on it.
 - **Optional settings snapshots:** tracked files (e.g. `settings.json`) are checked on every start; changes are kept in
   history and `seat sync restore <seat>` brings the old version back.
 
@@ -494,6 +496,7 @@ More in [Presets and folder groups](#presets-and-folder-groups).
 | Command | What it does |
 |---|---|
 | `seat desktop [seat]` | Starts the Claude desktop app on a seat (macOS), with its own data folder, unless it already runs. Without a seat, lists the running instances |
+| `seat desktop <seat> --quit` / `--restart` | Quits the seat's desktop window as Cmd-Q does (it saves its state and stops its Code sessions) and waits until it has gone; `--restart` then starts it on the seat. For a window opened from the Dock on the seat's folder, or one with an older setup |
 | `seat desktop <seat> --own-folder` | Moves a seat's desktop data out of the app's usual folder into `Claude-<seat>` (the app must be quit), so a Claude opened from the Dock can't land on it |
 | `seat doctor --desktop` | The desktop instances running, and recent warnings and errors from their shared log, each with the instances that were running then |
 | `seat term [--seat s] [--dir d] [--with p] [--home] [--print] [-- args]` | Opens a terminal window running the seat's CLI in a project. Inside a session it takes that session's seat and project |
@@ -527,7 +530,7 @@ Inside the desktop app, `/seatwise:terminal` or `/seatwise:hybrid` does the same
 | `seat sentinel rules` | The rules it checks |
 | `seat sentinel install [--dry-run]` / `seat sentinel uninstall` | Runs it every `sentinel.interval` in the background (launchd, a systemd user timer, or Task Scheduler) |
 | `seat sync restore <seat>` | Swaps the files listed in `track` back to their previous snapshot; run it again to undo |
-| `seat tui` | Full-screen settings: seats, agents, presets, folder groups and the sentinel. `w` writes, keeping comments |
+| `seat tui` | Full-screen settings: seats, agents, presets, folder groups and the sentinel. `w` writes, keeping comments. The Running tab starts (`d`), quits (`x`) and restarts (`R`) a seat's desktop app and opens a terminal on it (`t`) |
 
 ```sh
 seat sentinel --here                  # just this project and its seat
@@ -808,9 +811,10 @@ it. Only one seat can have the usual folder.
 That keeps the login, but the usual folder is also where every Claude opened from the Dock, Finder, Spotlight or a
 login item lands, without the seat. Such a window shows the seat's desktop login but reads Code sessions from
 `~/.claude`, so the seat's sessions and environments look gone (they aren't: they are in the seat's config folder).
-Move the seat out once, with the app quit:
+Move the seat out once:
 
 ```sh
+seat desktop work --quit         # quits that window, as Cmd-Q does
 seat desktop work --own-folder   # moves the usual folder to Claude-work, login and sessions included
 seat desktop work
 ```
@@ -828,7 +832,7 @@ seat still uses the usual folder, and `seat desktop <seat>` refuses to call a Do
 - **Starting from the Dock or Finder** gives no seat: the app uses `~/.claude` (no hooks) and its usual data folder.
   `seat doctor` reports such instances, and `~/.claude` coming back; on a seat's folder, see `--own-folder` above.
 - **An instance keeps the environment it started with.** After changing a seat's link handling or config folder,
-  `seat doctor` says which desktop to restart.
+  `seat doctor` says which desktop to restart; `seat desktop <seat> --restart` (or `R` in `seat tui`) does it.
 - Deleting a seat's data folder signs that desktop seat out.
 - All instances write to one `~/Library/Logs/Claude/main.log`; `seat desktop` lists their start times to match lines.
 

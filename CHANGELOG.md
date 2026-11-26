@@ -7,6 +7,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- `seat tui` has a Running tab: per seat, its desktop window (on, off, or needing a restart) and its CLI sessions.
+  `d` starts the seat's desktop app, `x` quits it, `R` restarts it on the seat (both ask first, since quitting stops
+  its Code sessions, as Cmd-Q does), and `t` opens a terminal on the seat in its most recent project. `t` on the
+  Projects tab opens one in that project.
+- `seat desktop <seat> --quit` quits the seat's desktop window the way Cmd-Q does (the app runs its own quit, saving
+  its state) and waits until it has gone; `--restart` then starts it on the seat. A Claude opened from the Dock on the
+  seat's data folder counts as the seat's window, so `--restart` is the fix for it.
+
+### Changed
+- The hints for a Dock-opened or outdated desktop window name `seat desktop <seat> --quit` / `--restart` instead of
+  quitting it by hand.
+
 ## [0.8.4] - 2026-11-25
 
 ### Removed

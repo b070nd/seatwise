@@ -1,13 +1,13 @@
 //! `seat tui`: one screen for what is otherwise spread over many commands. A list on the left, a detail card on the
-//! right: seats (with usage and their projects), projects, presets (with an editor that only takes valid
-//! settings), folder groups, agents and the general options. Changes are checked as they are made and written
-//! (keeping comments) only on `w`.
+//! right: seats (with usage and their projects), what runs on each seat (start and quit its desktop app, open a
+//! terminal on it), projects, presets (with an editor that only takes valid settings), folder groups, agents and the
+//! general options. Config changes are checked as they are made and written (keeping comments) only on `w`.
 
 use crate::config::{Apply, Config, Enforcement, NONE};
 use crate::draft::{Choice, Draft};
 use crate::edit::ConfigFile;
 use crate::view::{self, Fact, Health, ProjectView, SeatView};
-use crate::{catalog, paths, preset, sentinel};
+use crate::{catalog, desktop, paths, preset, ps, sentinel};
 use anyhow::Result;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -21,6 +21,7 @@ use toml_edit::Value as T;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Seats,
+    Running,
     Projects,
     Presets,
     Groups,
@@ -28,8 +29,9 @@ pub enum Tab {
     General,
 }
 
-const TABS: [Tab; 6] = [
+const TABS: [Tab; 7] = [
     Tab::Seats,
+    Tab::Running,
     Tab::Projects,
     Tab::Presets,
     Tab::Groups,
@@ -43,6 +45,7 @@ impl Tab {
     fn title(self) -> &'static str {
         match self {
             Tab::Seats => "Seats",
+            Tab::Running => "Running",
             Tab::Projects => "Projects",
             Tab::Presets => "Presets",
             Tab::Groups => "Folder groups",
@@ -53,7 +56,8 @@ impl Tab {
     fn help(self) -> &'static str {
         match self {
             Tab::Seats => "space on/off  e enforcement  u usage",
-            Tab::Projects => "",
+            Tab::Running => "d desktop  t terminal  x quit desktop  R restart desktop",
+            Tab::Projects => "t terminal here",
             Tab::Presets => "space on/off  e edit settings",
             Tab::Groups => "space on/off  p preset  a apply  s sources",
             Tab::Agents => "space on/off",
@@ -73,11 +77,20 @@ pub struct Editor {
     pub note: String,
 }
 
+/// What can be started or stopped from the screen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Act {
+    Desktop,
+    Quit,
+    Restart,
+    Term(PathBuf),
+}
+
 pub struct App {
     pub file: ConfigFile,
     pub cfg: Config,
     pub tab: usize,
-    pub sel: [usize; 6],
+    pub sel: [usize; 7],
     pub dirty: bool,
     pub msg: String,
     pub quit: bool,
@@ -88,6 +101,13 @@ pub struct App {
     projects: Vec<ProjectView>,
     /// Usage lines per seat, loaded on `u` (it asks the vendor's endpoint).
     usage: HashMap<String, std::result::Result<crate::usage::Usage, String>>,
+    /// What runs now: the desktop windows and the CLI sessions (the Running tab keeps them fresh).
+    desktops: Vec<desktop::Instance>,
+    sessions: Vec<ps::Session>,
+    /// An action waiting for its key to be pressed again (quitting a window stops its Code sessions).
+    pending: Option<(char, String, Act)>,
+    /// When set, actions are written here instead of carried out, and nothing is read from the process list (tests).
+    pub recorded: Option<Vec<String>>,
 }
 
 fn flag(on: bool) -> &'static str {
@@ -198,7 +218,7 @@ impl App {
             file,
             cfg,
             tab: 0,
-            sel: [0; 6],
+            sel: [0; 7],
             dirty: false,
             msg: String::new(),
             quit: false,
@@ -208,6 +228,10 @@ impl App {
             seats: Vec::new(),
             projects: Vec::new(),
             usage: HashMap::new(),
+            desktops: Vec::new(),
+            sessions: Vec::new(),
+            pending: None,
+            recorded: None,
         };
         app.refresh();
         Ok(app)
@@ -219,13 +243,21 @@ impl App {
         self.projects = view::projects(&self.cfg);
     }
 
+    /// Read what runs now. Only the Running tab shows it, so only it pays for reading the process list.
+    pub fn tick(&mut self) {
+        if self.current() == Tab::Running && self.recorded.is_none() {
+            self.desktops = desktop::running(&self.cfg);
+            self.sessions = ps::sessions(&self.cfg).unwrap_or_default();
+        }
+    }
+
     pub fn current(&self) -> Tab {
         TABS[self.tab]
     }
 
     fn count(&self) -> usize {
         match self.current() {
-            Tab::Seats => self.cfg.seats.len(),
+            Tab::Seats | Tab::Running => self.cfg.seats.len(),
             Tab::Projects => self.projects.len(),
             Tab::Presets => preset::all(&self.cfg).len(),
             Tab::Groups => self.cfg.groups.len(),
@@ -262,6 +294,30 @@ impl App {
                         name,
                         Span::styled(format!("{:<7}", s.agent), Style::new().fg(Color::DarkGray)),
                         Span::styled(s.status.clone(), Style::new().fg(color(s.health))),
+                    ])
+                })
+                .collect(),
+            Tab::Running => c
+                .seats
+                .iter()
+                .map(|s| {
+                    let (word, health) = self.desktop_word(s);
+                    let n = self.sessions_of(&s.name).count();
+                    Line::from(vec![
+                        dot(health),
+                        Span::styled(
+                            format!("{:<10}", s.name),
+                            Style::new().add_modifier(Modifier::BOLD),
+                        ),
+                        Span::styled(format!("{word:<13}"), Style::new().fg(color(health))),
+                        Span::styled(
+                            format!("{n} CLI"),
+                            Style::new().fg(if n == 0 {
+                                Color::DarkGray
+                            } else {
+                                Color::Reset
+                            }),
+                        ),
                     ])
                 })
                 .collect(),
@@ -382,6 +438,10 @@ impl App {
                 .seats
                 .get(i)
                 .map_or_else(Vec::new, |s| self.seat_card(s)),
+            Tab::Running => c
+                .seats
+                .get(i)
+                .map_or_else(Vec::new, |s| self.running_card(s)),
             Tab::Projects => self.projects.get(i).map_or_else(
                 || {
                     vec![Line::from(
@@ -529,6 +589,189 @@ impl App {
         out
     }
 
+    fn desktop_of(&self, seat: &crate::config::Seat) -> Option<&desktop::Instance> {
+        desktop::instance_of(seat, &self.desktops)
+    }
+
+    fn sessions_of<'a>(&'a self, seat: &'a str) -> impl Iterator<Item = &'a ps::Session> {
+        self.sessions.iter().filter(move |x| x.seat == seat)
+    }
+
+    /// The desktop column of the Running tab.
+    fn desktop_word(&self, s: &crate::config::Seat) -> (&'static str, Health) {
+        if s.agent != crate::config::Agent::Claude {
+            return ("no desktop", Health::Off);
+        }
+        match self.desktop_of(s) {
+            None => ("desktop off", Health::Off),
+            Some(i) if desktop::problem(&self.cfg, s, i, &self.exe).is_some() => {
+                ("desktop: fix", Health::Notice)
+            }
+            Some(_) => ("desktop on", Health::Good),
+        }
+    }
+
+    /// Where `t` opens a terminal for a seat: its most recently used project, else the home folder.
+    fn term_dir(&self, seat: &str) -> PathBuf {
+        self.projects
+            .iter()
+            .find(|p| p.owner == seat && p.exists)
+            .map_or_else(paths::home, |p| paths::expand(&p.path))
+    }
+
+    fn running_card(&self, s: &crate::config::Seat) -> Vec<Line<'static>> {
+        let dim = Style::new().fg(Color::DarkGray);
+        let mut out = vec![section("desktop app")];
+        let claude = s.agent == crate::config::Agent::Claude;
+        if !claude {
+            out.push(Line::from("  Codex has no desktop app here"));
+        } else if !cfg!(target_os = "macos") && self.recorded.is_none() {
+            out.push(Line::from("  the desktop app is for macOS"));
+        } else {
+            match self.desktop_of(s) {
+                None => out.push(Line::from(Span::styled(
+                    "  not running: d starts it on the seat",
+                    dim,
+                ))),
+                Some(i) => {
+                    out.push(Line::from(format!("  running: {}", i.label())));
+                    if let Some(p) = desktop::problem(&self.cfg, s, i, &self.exe) {
+                        out.push(Line::from(Span::styled(
+                            format!("  {p}: R restarts it on the seat"),
+                            Style::new().fg(Color::Yellow),
+                        )));
+                    }
+                }
+            }
+        }
+        out.push(Line::default());
+        let mine: Vec<&ps::Session> = self.sessions_of(&s.name).collect();
+        out.push(section(&format!("CLI sessions ({})", mine.len())));
+        if mine.is_empty() {
+            out.push(Line::from(Span::styled("  none running", dim)));
+        }
+        for x in mine {
+            out.push(Line::from(vec![
+                Span::raw(format!("  pid {:<7} {:>4}m  ", x.pid, x.minutes)),
+                Span::raw(x.cwd.as_deref().map_or_else(|| "?".into(), paths::contract)),
+                Span::styled(
+                    x.preset
+                        .as_deref()
+                        .map_or(String::new(), |p| format!("  {p}")),
+                    dim,
+                ),
+            ]));
+        }
+        out.push(Line::default());
+        out.push(section("keys"));
+        let mut keys = Vec::new();
+        if claude {
+            keys.push("  d  start the desktop app on the seat (never a second window)".to_string());
+        }
+        keys.push(format!(
+            "  t  open a terminal on the seat in {}",
+            paths::contract(&self.term_dir(&s.name))
+        ));
+        if claude {
+            keys.push("  x  quit the desktop app, as Cmd-Q does (asks first)".into());
+            keys.push("  R  restart the desktop app on the seat (asks first)".into());
+        }
+        out.extend(keys.into_iter().map(|k| Line::from(Span::styled(k, dim))));
+        out
+    }
+
+    /// Start or stop something; asks first for what stops a running window.
+    fn run_act(&mut self, seat: String, act: Act) {
+        let what = match &act {
+            Act::Desktop => format!("start seat '{seat}' desktop"),
+            Act::Quit => format!("quit seat '{seat}' desktop"),
+            Act::Restart => format!("restart seat '{seat}' desktop"),
+            Act::Term(dir) => format!(
+                "open a terminal on seat '{seat}' in {}",
+                paths::contract(dir)
+            ),
+        };
+        if let Some(log) = self.recorded.as_mut() {
+            log.push(what.clone());
+            self.msg = what;
+            return;
+        }
+        let Some(s) = self.cfg.seat(&seat).cloned() else {
+            return;
+        };
+        let result = match act {
+            Act::Desktop => desktop::open(&self.cfg, &s, &self.exe),
+            Act::Quit => desktop::quit(&self.cfg, &s),
+            Act::Restart => desktop::restart(&self.cfg, &s, &self.exe),
+            Act::Term(dir) => {
+                let words = crate::term::run_words(
+                    &self.exe,
+                    &s.name,
+                    &self
+                        .cfg
+                        .terminal
+                        .profile
+                        .iter()
+                        .cloned()
+                        .collect::<Vec<_>>(),
+                    false,
+                    &[],
+                );
+                crate::term::open(&self.cfg, &dir, &crate::term::shell_line(&dir, &words))
+                    .map(|()| vec![format!("{what}: done")])
+            }
+        };
+        self.msg = match result {
+            Ok(lines) => lines.join("; "),
+            Err(e) => crate::error::render(&e)
+                .0
+                .iter()
+                .map(|l| l.trim().trim_start_matches("seat: "))
+                .collect::<Vec<_>>()
+                .join("; "),
+        };
+        self.tick();
+    }
+
+    /// The Running tab's keys.
+    fn running_key(&mut self, k: KeyCode, i: usize) {
+        let s = self.cfg.seats[i].clone();
+        let claude = s.agent == crate::config::Agent::Claude;
+        let running = self.desktop_of(&s).map(|d| d.pid);
+        match k {
+            KeyCode::Char('t') => {
+                let dir = self.term_dir(&s.name);
+                self.run_act(s.name, Act::Term(dir));
+            }
+            KeyCode::Char('d' | 'x' | 'R') if !claude => {
+                self.msg = format!(
+                    "seat '{}' runs Codex, which has no desktop app here",
+                    s.name
+                );
+            }
+            KeyCode::Char('d') => self.run_act(s.name, Act::Desktop),
+            KeyCode::Char('x') if running.is_none() => {
+                self.msg = format!("seat '{}' desktop isn't running", s.name);
+            }
+            KeyCode::Char('R') if running.is_none() => self.run_act(s.name, Act::Desktop),
+            KeyCode::Char(c @ ('x' | 'R')) => {
+                let (act, verb) = if c == 'x' {
+                    (Act::Quit, "quit")
+                } else {
+                    (Act::Restart, "restart")
+                };
+                self.msg = format!(
+                    "{verb} seat '{}' desktop (pid {})? Its Code sessions stop, as with Cmd-Q. {c} again does it, \
+                     any other key doesn't",
+                    s.name,
+                    running.unwrap_or_default()
+                );
+                self.pending = Some((c, s.name, act));
+            }
+            _ => {}
+        }
+    }
+
     fn project_card(&self, p: &ProjectView) -> Vec<Line<'static>> {
         let preset = if p.preset == "-" {
             "-".to_string()
@@ -613,8 +856,23 @@ impl App {
             self.editor_key(k);
             return;
         }
+        if let Some((c, seat, act)) = self.pending.take() {
+            if k == KeyCode::Char(c) {
+                self.run_act(seat, act);
+                return;
+            }
+            self.msg = "not done".into();
+        }
         let n = self.count();
         let i = self.sel[self.tab];
+        let tab = self.tab;
+        self.key_inner(k, n, i);
+        if self.tab != tab {
+            self.tick();
+        }
+    }
+
+    fn key_inner(&mut self, k: KeyCode, n: usize, i: usize) {
         match k {
             KeyCode::Char('q') | KeyCode::Esc => {
                 if self.dirty && !self.msg.starts_with("unsaved") {
@@ -638,6 +896,21 @@ impl App {
                 let found = sentinel::run(&self.cfg, &[]);
                 self.msg = format!("sentinel: {} suggestion(s)", found.len());
                 self.report = sentinel::last_report();
+            }
+            KeyCode::Char('d' | 't' | 'x' | 'R') if self.current() == Tab::Running && n > 0 => {
+                self.running_key(k, i);
+            }
+            KeyCode::Char('t') if self.current() == Tab::Projects && n > 0 => {
+                let p = &self.projects[i];
+                match self.cfg.seat(&p.owner) {
+                    Some(s) => {
+                        let (seat, dir) = (s.name.clone(), paths::expand(&p.path));
+                        self.run_act(seat, Act::Term(dir));
+                    }
+                    None => {
+                        self.msg = format!("no seat owns {}; open it from the Running tab", p.path)
+                    }
+                }
             }
             KeyCode::Char('u') if self.current() == Tab::Seats && n > 0 => {
                 let seat = self.cfg.seats[i].clone();
@@ -902,6 +1175,13 @@ impl App {
             Tab::Seats => self.seats.get(i).map_or((" seat ".into(), ACCENT), |s| {
                 (format!(" {} · {} ", s.name, s.agent), color(s.health))
             }),
+            Tab::Running => (
+                self.cfg
+                    .seats
+                    .get(i)
+                    .map_or(" running ".into(), |s| format!(" {} · running ", s.name)),
+                ACCENT,
+            ),
             Tab::Projects => (
                 " project ".into(),
                 self.projects.get(i).map_or(ACCENT, |p| color(p.health)),
@@ -1050,7 +1330,7 @@ impl App {
         let [top, body, foot] = Layout::vertical([
             Constraint::Length(3),
             Constraint::Min(8),
-            Constraint::Length(2),
+            Constraint::Length(3),
         ])
         .areas(frame.area());
         let titles: Vec<Line> = TABS
@@ -1141,7 +1421,8 @@ impl App {
                     format!(" {}", self.msg),
                     Style::new().fg(ACCENT),
                 )),
-            ]),
+            ])
+            .wrap(Wrap { trim: false }),
             foot,
         );
     }
@@ -1160,6 +1441,11 @@ pub fn run(exe: &Path) -> Result<()> {
     let result = (|| -> Result<()> {
         while !app.quit {
             terminal.draw(|f| app.draw(f))?;
+            // Without a key for a while, look again at what runs (a window started or quit elsewhere).
+            if !event::poll(std::time::Duration::from_secs(2))? {
+                app.tick();
+                continue;
+            }
             if let Event::Key(k) = event::read()?
                 && k.kind == KeyEventKind::Press
             {
@@ -1295,6 +1581,61 @@ mod tests {
         assert!(
             text.contains("[preset.build.settings]") && text.contains("effortLevel = \"medium\""),
             "{text}"
+        );
+    }
+
+    #[test]
+    fn the_running_tab_starts_and_asks_before_it_quits() {
+        let (_t, mut a) = app(&format!(
+            "{CFG}\n[[seat]]\nname = \"x\"\nagent = \"codex\"\nconfig_dir = \"~/.cx\"\n"
+        ));
+        a.recorded = Some(Vec::new());
+        goto(&mut a, Tab::Running);
+        assert_eq!(a.rows().len(), 2, "{:?}", a.rows());
+        assert!(a.rows()[0].contains("desktop off"), "{:?}", a.rows());
+        assert!(a.rows()[1].contains("no desktop"), "{:?}", a.rows());
+        assert!(
+            a.detail().contains("d starts it on the seat"),
+            "{}",
+            a.detail()
+        );
+        a.key(KeyCode::Char('d'));
+        a.key(KeyCode::Char('t'));
+        a.key(KeyCode::Char('x')); // nothing runs: nothing to quit
+        assert!(a.msg.contains("isn't running"), "{}", a.msg);
+        a.key(KeyCode::Char('R')); // nothing runs: a restart is a start
+        // A running window: x and R ask first; another key cancels.
+        a.desktops = vec![desktop::Instance {
+            pid: 42,
+            started: "now".into(),
+            app: desktop::DEFAULT_APP.into(),
+            data_dir: Some(paths::home().join("Library/Application Support/Claude-w")),
+            seat: Some("w".into()),
+            config_dir: Some(paths::home().join(".cw").display().to_string()),
+            browser: None,
+        }];
+        assert!(a.rows()[0].contains("desktop on"), "{:?}", a.rows());
+        a.key(KeyCode::Char('x'));
+        assert!(
+            a.msg.contains("pid 42") && a.msg.contains("x again"),
+            "{}",
+            a.msg
+        );
+        a.key(KeyCode::Down); // cancels, and moves
+        a.key(KeyCode::Up);
+        a.key(KeyCode::Char('R'));
+        a.key(KeyCode::Char('R'));
+        a.key(KeyCode::Down);
+        a.key(KeyCode::Char('d')); // the Codex seat
+        assert!(a.msg.contains("Codex"), "{}", a.msg);
+        assert_eq!(
+            a.recorded.as_deref().unwrap(),
+            [
+                "start seat 'w' desktop".to_string(),
+                "open a terminal on seat 'w' in ~".to_string(),
+                "start seat 'w' desktop".into(),
+                "restart seat 'w' desktop".into(),
+            ]
         );
     }
 

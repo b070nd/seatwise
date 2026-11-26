@@ -1538,14 +1538,14 @@ fn desktop_starts_each_seat_once_with_its_own_data_folder_and_environment() {
     assert!(
         t.contains("seat 'a''s data folder runs without the seat (pid 200")
             && t.contains("Nothing is lost")
-            && t.contains("resolution: Quit that window (Cmd-Q), then: seat desktop a"),
+            && t.contains("resolution: seat desktop a --quit (or Cmd-Q in that window), then: seat desktop a --own-folder"),
         "{t}"
     );
     assert!(!t.contains("ARGS="), "{t}");
     let t = text(&desktop(&["doctor"], &dock));
     assert!(
         t.contains("seat 'a''s data folder runs without the seat")
-            && t.contains("run `seat desktop a --own-folder`"),
+            && t.contains("Run `seat desktop a --quit`, then `seat desktop a --own-folder`"),
         "{t}"
     );
     let t = ok(&desktop(&["desktop"], &dock));
@@ -1575,7 +1575,7 @@ fn desktop_starts_each_seat_once_with_its_own_data_folder_and_environment() {
     let t = text(&out);
     assert_eq!(out.status.code(), Some(1), "{t}");
     assert!(
-        t.contains("resolution: Quit it (Cmd-Q), then: seat desktop a --own-folder"),
+        t.contains("resolution: seat desktop a --quit (or Cmd-Q in that window), then: seat desktop a --own-folder"),
         "{t}"
     );
     assert!(
@@ -1623,6 +1623,61 @@ fn desktop_starts_each_seat_once_with_its_own_data_folder_and_environment() {
         sh.contains("function claude-desktop-a {") && sh.contains("desktop a; }"),
         "{sh}"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn desktop_quit_and_restart_ask_the_seats_window_to_quit_and_wait_for_it() {
+    use std::os::unix::fs::PermissionsExt;
+    let e = setup_with("");
+    let ps = e.home.join("ps.txt");
+    let killed = e.home.join("killed.txt");
+    // The stand-in for `kill`: records its arguments, and the window goes (the process list empties).
+    let kill = e.home.join("fake-kill");
+    fs::write(
+        &kill,
+        format!(
+            "#!/bin/sh\necho \"$@\" >> '{}'\n: > '{}'\n",
+            killed.display(),
+            ps.display()
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&kill, fs::Permissions::from_mode(0o755)).unwrap();
+    let support = e.home.join("Library/Application Support");
+    let desktop = |args: &[&str], processes: &str| {
+        fs::write(&ps, processes).unwrap();
+        e.seat("", args)
+            .env("SEATWISE_OPEN", &e.fake_claude)
+            .env("SEATWISE_DESKTOP_PS", &ps)
+            .env("SEATWISE_KILL", &kill)
+            .output()
+            .unwrap()
+    };
+    let app = "/Applications/Claude.app/Contents/MacOS/Claude";
+
+    let t = ok(&desktop(&["desktop", "b", "--quit"], ""));
+    assert!(t.contains("seat 'b' desktop isn't running"), "{t}");
+    assert!(!killed.exists(), "nothing to quit");
+
+    // A Claude opened from the Dock on seat b's folder is b's window too: quit it, then start it on the seat.
+    let dock_on_b = format!(
+        "300\tSun Nov 22 23:00:00 2026\t{app} --user-data-dir={}\tPATH=/usr/bin\n",
+        support.join("Claude-b").display()
+    );
+    let t = ok(&desktop(&["desktop", "b", "--restart"], &dock_on_b));
+    assert!(t.contains("quit seat 'b' desktop (pid 300"), "{t}");
+    assert!(t.contains("started the desktop app on seat 'b'"), "{t}");
+    assert!(t.contains("--env SEATWISE_SEAT=b"), "{t}");
+    assert_eq!(fs::read_to_string(&killed).unwrap(), "-TERM 300\n");
+
+    // Another seat's window is left alone.
+    let t = ok(&desktop(&["desktop", "a", "--quit"], &dock_on_b));
+    assert!(t.contains("seat 'a' desktop isn't running"), "{t}");
+    assert_eq!(fs::read_to_string(&killed).unwrap(), "-TERM 300\n");
+
+    let t = text(&desktop(&["desktop", "b", "--quit", "--restart"], ""));
+    assert!(t.contains("cannot be used with"), "{t}");
 }
 
 #[test]

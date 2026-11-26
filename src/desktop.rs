@@ -506,9 +506,9 @@ pub fn open(cfg: &Config, seat: &Seat, exe: &Path) -> Result<Vec<String>> {
         if let Some(s) = hijacked_seat(cfg, i).filter(|s| s.name == seat.name) {
             return Err(crate::error::UserError::new(hijacked_message(s, i))
                 .resolution(format!(
-                    "Quit that window (Cmd-Q), then: seat desktop {} --own-folder, so a Dock launch can't do \
+                    "seat desktop {} --quit (or Cmd-Q in that window), then: seat desktop {} --own-folder, so a Dock launch can't do \
                      this again; then: seat desktop {}",
-                    seat.name, seat.name
+                    seat.name, seat.name, seat.name
                 ))
                 .into());
         }
@@ -519,7 +519,7 @@ pub fn open(cfg: &Config, seat: &Seat, exe: &Path) -> Result<Vec<String>> {
         )];
         if let Some(diff) = stale(cfg, i, exe) {
             out.push(format!(
-                "it runs with an older setup ({diff}): quit it (Cmd-Q in that window) and run this again"
+                "it runs with an older setup ({diff}): `seat desktop {} --restart` restarts it on the seat", seat.name
             ));
         }
         out.extend(notes);
@@ -567,6 +567,80 @@ pub fn open(cfg: &Config, seat: &Seat, exe: &Path) -> Result<Vec<String>> {
     Ok(out)
 }
 
+/// The instance running on a seat's data folder, whether it was started for the seat or not (a Claude opened from
+/// the Dock on the seat's folder is that seat's window too).
+pub fn instance_of<'a>(seat: &Seat, running: &'a [Instance]) -> Option<&'a Instance> {
+    let data = data_dir_or_default(seat);
+    running
+        .iter()
+        .find(|i| same_dir(&i.data_dir_or_default(), &data))
+}
+
+/// What is wrong with a seat's running desktop window, in a few words, when restarting it on the seat would fix it.
+pub fn problem(cfg: &Config, seat: &Seat, i: &Instance, exe: &Path) -> Option<String> {
+    if hijacked_seat(cfg, i).is_some_and(|s| s.name == seat.name) {
+        return Some(
+            "opened from the Dock, without the seat: its Code tab shows ~/.claude, not the seat's sessions".into(),
+        );
+    }
+    stale(cfg, i, exe).map(|d| format!("runs with an older setup ({d})"))
+}
+
+/// How long [`quit`] waits for the app to go.
+const QUIT_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Quit a seat's desktop app the way Cmd-Q does: the app gets SIGTERM and runs its own quit (it saves its state
+/// and stops its Code sessions). Waits until it has exited.
+pub fn quit(cfg: &Config, seat: &Seat) -> Result<Vec<String>> {
+    if seat.agent != crate::config::Agent::Claude {
+        bail!(
+            "seat '{}' runs Codex, which has no desktop app here",
+            seat.name
+        );
+    }
+    let running = running(cfg);
+    let Some(i) = instance_of(seat, &running) else {
+        return Ok(vec![format!("seat '{}' desktop isn't running", seat.name)]);
+    };
+    let (pid, label) = (i.pid, i.label());
+    // `kill`, or the tests' stand-in for it.
+    let killer = std::env::var_os("SEATWISE_KILL").unwrap_or_else(|| "/bin/kill".into());
+    let output = std::process::Command::new(killer)
+        .args(["-TERM", &pid.to_string()])
+        .output()
+        .context("asking the desktop app to quit")?;
+    if !output.status.success() {
+        bail!(
+            "couldn't quit the desktop app ({label}): {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    let until = std::time::Instant::now() + QUIT_WAIT;
+    while self::running(cfg).iter().any(|i| i.pid == pid) {
+        if std::time::Instant::now() > until {
+            return Err(crate::error::UserError::new(format!(
+                "seat '{}' desktop is still running {}s after it was asked to quit ({label})",
+                seat.name,
+                QUIT_WAIT.as_secs()
+            ))
+            .resolution(
+                "It may be asking something in its window; answer it or quit it there (Cmd-Q)",
+            )
+            .into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    Ok(vec![format!("quit seat '{}' desktop ({label})", seat.name)])
+}
+
+/// Quit a seat's desktop app if it runs, then start it on the seat: the fix for a window opened from the Dock on
+/// the seat's data folder, or one running with an older setup.
+pub fn restart(cfg: &Config, seat: &Seat, exe: &Path) -> Result<Vec<String>> {
+    let mut out = quit(cfg, seat)?;
+    out.extend(open(cfg, seat, exe)?);
+    Ok(out)
+}
+
 /// Move a seat's desktop data out of the app's default folder into one of its own (`Claude-<seat>`), and drop
 /// `user_data_dir = "default"` from its config. While a seat lives in the default folder, every Claude opened from
 /// the Dock, Finder, Spotlight or a login item lands on its data without the seat, and its sessions look gone.
@@ -595,8 +669,8 @@ pub fn own_folder(cfg: &Config, seat: &Seat) -> Result<Vec<String>> {
             i.label()
         ))
         .resolution(format!(
-            "Quit it (Cmd-Q), then: seat desktop {} --own-folder",
-            seat.name
+            "seat desktop {} --quit (or Cmd-Q in that window), then: seat desktop {} --own-folder",
+            seat.name, seat.name
         ))
         .into());
     }
@@ -738,9 +812,10 @@ pub fn findings(cfg: &Config, exe: &Path) -> Findings {
             None if hijacked_seat(cfg, i).is_some() => {
                 let s = hijacked_seat(cfg, i).unwrap();
                 out.push(format!(
-                    "{}. Quit it (Cmd-Q), run `seat desktop {} --own-folder` so a Dock launch can't do this \
-                     again, then `seat desktop {}`",
+                    "{}. Run `seat desktop {} --quit`, then `seat desktop {} --own-folder` so a Dock launch can't \
+                     do this again, then `seat desktop {}`",
                     hijacked_message(s, i),
+                    s.name,
                     s.name,
                     s.name
                 ))
@@ -758,7 +833,7 @@ pub fn findings(cfg: &Config, exe: &Path) -> Findings {
             Some(name) => {
                 if let Some(diff) = stale(cfg, i, exe) {
                     out.push(format!(
-                        "restart the '{name}' desktop: it runs with an older setup ({diff}; {}). Quit it and run `seat desktop {name}`",
+                        "restart the '{name}' desktop: it runs with an older setup ({diff}; {}). `seat desktop {name} --restart` restarts it on the seat",
                         i.label()
                     ));
                 }
