@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-26
+
 ### Added
 - `seat tui` has a Running tab: per seat, its desktop window (on, off, or needing a restart) and its CLI sessions.
   `d` starts the seat's desktop app, `x` quits it, `R` restarts it on the seat (both ask first, since quitting stops
@@ -290,7 +292,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.8.4...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/b070nd/seatwise/compare/v0.8.4...v0.9.0
 [0.8.4]: https://github.com/b070nd/seatwise/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/b070nd/seatwise/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/b070nd/seatwise/compare/v0.8.1...v0.8.2
