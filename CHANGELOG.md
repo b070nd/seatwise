@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Sessions seatwise starts keep the Mac awake while they run (`caffeinate -i`, idle sleep only), as the desktop app
+  does for its own sessions, so a terminal session isn't cut off by sleep in the middle of a turn. On by default;
+  `keep_awake = false` in the config turns it off.
+
 ### Fixed
 - The terminal and hybrid skills open the terminal in the desktop app's Terminal panel, beside the conversation,
   instead of a new window: they name the app's terminal tool, which a session may list only as a deferred tool.

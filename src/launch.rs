@@ -182,6 +182,9 @@ pub fn run(cfg: &Config, seat_arg: &str, opts: &RunOptions, args: &[String]) -> 
     }
     cmd.args(args);
     // The count only: a session's arguments can be a prompt.
+    if !probe_only && cfg.keeps_awake() {
+        keep_awake();
+    }
     crate::runlog::line(&format!(
         "exec {} with {} argument(s)",
         seat.agent.binary(),
@@ -491,6 +494,26 @@ pub fn agent_binary(agent: Agent) -> Result<PathBuf> {
 fn exec(mut cmd: Command) -> Result<i32> {
     use std::os::unix::process::CommandExt;
     Err(cmd.exec()).context("starting claude")
+}
+
+/// Hold off idle sleep while the session runs, as the desktop app does for its own: `caffeinate -i -w <pid>` (macOS)
+/// watches this process, which becomes the agent on exec (the same pid), and lets go when it exits. In its own process
+/// group, so the Ctrl-C that interrupts the agent doesn't end it too. `SEATWISE_CAFFEINATE` stands in for it (tests).
+fn keep_awake() {
+    let prog = std::env::var_os("SEATWISE_CAFFEINATE")
+        .map(PathBuf::from)
+        .or_else(|| cfg!(target_os = "macos").then(|| PathBuf::from("/usr/bin/caffeinate")));
+    let Some(prog) = prog else { return };
+    let mut cmd = Command::new(prog);
+    cmd.args(["-i", "-w", &std::process::id().to_string()])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(unix)]
+    std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+    if cmd.spawn().is_err() {
+        crate::runlog::line("keep_awake: caffeinate didn't start");
+    }
 }
 
 #[cfg(windows)]

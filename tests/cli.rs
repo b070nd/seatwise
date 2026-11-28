@@ -2518,3 +2518,46 @@ fn config_from_a_newer_seatwise_is_refused() {
         "{t}"
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn sessions_keep_the_computer_awake_unless_turned_off() {
+    use std::os::unix::fs::PermissionsExt;
+    let e = setup_with("");
+    let log = e.home.join("caffeinate.txt");
+    let stand_in = e.home.join("fake-caffeinate");
+    fs::write(
+        &stand_in,
+        format!("#!/bin/sh\necho \"$@\" >> '{}'\n", log.display()),
+    )
+    .unwrap();
+    fs::set_permissions(&stand_in, fs::Permissions::from_mode(0o755)).unwrap();
+    let run = || {
+        let out = e
+            .seat("proj-a", &["run", "a"])
+            .env("SEATWISE_CAFFEINATE", &stand_in)
+            .output()
+            .unwrap();
+        let t = text(&out);
+        assert!(t.contains("SEAT=a"), "{t}");
+        // The stand-in runs in the background: give it a moment.
+        for _ in 0..50 {
+            if log.exists() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    };
+    run();
+    let got = fs::read_to_string(&log).unwrap();
+    assert!(
+        got.starts_with("-i -w "),
+        "it watches the session's pid: {got}"
+    );
+
+    fs::remove_file(&log).unwrap();
+    let cfg = fs::read_to_string(&e.config).unwrap();
+    fs::write(&e.config, format!("keep_awake = false\n{cfg}")).unwrap();
+    run();
+    assert!(!log.exists(), "turned off");
+}

@@ -233,6 +233,7 @@ seat unlink --missing
 | `seat run <seat\|auto> [args]...` | Starts Claude Code (or Codex) on a seat, in the current folder. Everything after the seat goes to the agent unchanged. `auto` picks the seat that owns the folder |
 | `seat run --with <profile> <seat>` | Adds a usage profile for this one session (repeatable), passed as `--settings` |
 | `seat run --home <seat>` | Starts in the seat's home repo |
+| `keep_awake = false` (config) | Every session seatwise starts keeps the Mac from idle sleep while it runs (`caffeinate -i`), as the desktop app does for its own sessions, so a long turn in a terminal isn't cut off. On by default; this turns it off |
 | `claude-<seat>` / `claude-<alias>` | The same as `seat run <seat>`, defined by `seat shell-init`. Codex seats get `codex-<seat>`, and on macOS the desktop app gets `claude-desktop-<seat>` |
 | `seat shell-init <zsh\|bash\|fish\|powershell>` | Prints those shell functions. With `shell.override_claude = true` it also defines a plain `claude` that picks the seat by folder |
 | `seat shim install` / `seat shim uninstall` | A `claude` command on PATH that picks the seat by folder, for IDEs and tools that start `claude` themselves |
@@ -879,6 +880,9 @@ Org UUIDs, org names, emails, account ids and login tokens are read only from yo
   folder.
 - **The first start of each seat** asks Claude Code's one-time questions (trusting the folder, the theme) again: every
   seat has its own config folder.
+- **Sleep.** A session seatwise starts holds off idle sleep until it exits (macOS, `caffeinate -i`, the same hold
+  `caffeinate` gives any command); the display may still sleep, and closing a laptop's lid still puts it to sleep.
+  `keep_awake = false` in the config turns it off. A plain `claude` started without seatwise doesn't get it.
 - **Terminals that were already open** keep their old functions and aliases. Run `eval "$(seat shell-init zsh)"` again
   there, or open a new one.
 - **The desktop app's sessions** may point `XDG_CONFIG_HOME` into their scratch workspace; seatwise ignores such

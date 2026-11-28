@@ -338,6 +338,10 @@ pub struct Config {
     /// Where `share` items come from. Unset: `shared/` next to this config file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shared_dir: Option<String>,
+    /// Keep the computer from idle sleep while a session seatwise started runs (macOS, `caffeinate -i`), as the
+    /// desktop app does for its own sessions. Unset: on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep_awake: Option<bool>,
     #[serde(default)]
     pub shell: ShellOptions,
     #[serde(default)]
@@ -533,6 +537,11 @@ impl Seat {
 }
 
 impl Config {
+    /// Whether sessions keep the computer awake (`keep_awake`, on unless set to false).
+    pub fn keeps_awake(&self) -> bool {
+        self.keep_awake.unwrap_or(true)
+    }
+
     pub fn load() -> Result<Self> {
         Self::load_from(&paths::config_file())
     }

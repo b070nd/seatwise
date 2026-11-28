@@ -12,6 +12,10 @@ version = 1
 # A seat signed into the wrong org always gets a warning, and is refused under "strict".
 enforcement = "off"
 
+# macOS: every session seatwise starts keeps the computer from idle sleep while it runs (`caffeinate -i`), as the
+# desktop app does for its own sessions, so a long turn in a terminal isn't cut off. Set false to let it sleep.
+keep_awake = true
+
 # Seat for `seat run auto` in folders no seat owns. Unset: you're asked on a terminal, scripts get an error.
 # default_seat = "personal"
 
