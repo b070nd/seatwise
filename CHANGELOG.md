@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-28
+
 ### Added
 - Sessions seatwise starts keep the Mac awake while they run (`caffeinate -i`, idle sleep only), as the desktop app
   does for its own sessions, so a terminal session isn't cut off by sleep in the middle of a turn. On by default;
@@ -307,7 +309,8 @@ First release.
   agent runs seatwise or its output is piped; hook messages never contain them, and a seat's token is only ever sent to
   Anthropic's usage endpoint.
 
-[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/b070nd/seatwise/compare/v0.9.2...HEAD
+[0.9.2]: https://github.com/b070nd/seatwise/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/b070nd/seatwise/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/b070nd/seatwise/compare/v0.8.4...v0.9.0
 [0.8.4]: https://github.com/b070nd/seatwise/compare/v0.8.3...v0.8.4
